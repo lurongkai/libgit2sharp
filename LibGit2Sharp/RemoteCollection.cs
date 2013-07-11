@@ -10,7 +10,7 @@ using LibGit2Sharp.Core.Handles;
 namespace LibGit2Sharp
 {
     /// <summary>
-    ///   The collection of <see cref = "Remote" /> in a <see cref = "Repository" />
+    /// The collection of <see cref="Remote"/> in a <see cref="Repository"/>
     /// </summary>
     [DebuggerDisplay("{DebuggerDisplay,nq}")]
     public class RemoteCollection : IEnumerable<Remote>
@@ -18,7 +18,7 @@ namespace LibGit2Sharp
         private readonly Repository repository;
 
         /// <summary>
-        ///   Needed for mocking purposes.
+        /// Needed for mocking purposes.
         /// </summary>
         protected RemoteCollection()
         { }
@@ -29,10 +29,10 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   Gets the <see cref = "Remote" /> with the specified name.
+        /// Gets the <see cref="Remote"/> with the specified name.
         /// </summary>
-        /// <param name = "name">The name of the remote to retrieve.</param>
-        /// <returns>The retrived <see cref = "Remote" /> if it has been found, null otherwise.</returns>
+        /// <param name="name">The name of the remote to retrieve.</param>
+        /// <returns>The retrived <see cref="Remote"/> if it has been found, null otherwise.</returns>
         public virtual Remote this[string name]
         {
             get { return RemoteForName(name, false); }
@@ -49,9 +49,27 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   Returns an enumerator that iterates through the collection.
+        /// Update properties of a remote.
         /// </summary>
-        /// <returns>An <see cref = "IEnumerator{T}" /> object that can be used to iterate through the collection.</returns>
+        /// <param name="remote">The remote to update.</param>
+        /// <param name="actions">Delegate to perform updates on the remote.</param>
+        /// <returns>The updated remote.</returns>
+        public virtual Remote Update(Remote remote, params Action<RemoteUpdater>[] actions)
+        {
+            var updater = new RemoteUpdater(this.repository, remote);
+
+            foreach (Action<RemoteUpdater> action in actions)
+            {
+                action(updater);
+            }
+
+            return this[remote.Name];
+        }
+
+        /// <summary>
+        /// Returns an enumerator that iterates through the collection.
+        /// </summary>
+        /// <returns>An <see cref="IEnumerator{T}"/> object that can be used to iterate through the collection.</returns>
         public virtual IEnumerator<Remote> GetEnumerator()
         {
             return Proxy
@@ -61,23 +79,23 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   Returns an enumerator that iterates through the collection.
+        /// Returns an enumerator that iterates through the collection.
         /// </summary>
-        /// <returns>An <see cref = "IEnumerator" /> object that can be used to iterate through the collection.</returns>
+        /// <returns>An <see cref="IEnumerator"/> object that can be used to iterate through the collection.</returns>
         IEnumerator IEnumerable.GetEnumerator()
         {
             return GetEnumerator();
         }
 
         /// <summary>
-        ///   Creates a <see cref="Remote"/> with the specified name and for the repository at the specified location.
-        ///   <para>
-        ///     A default fetch refspec will be added for this remote.
-        ///   </para>
+        /// Creates a <see cref="Remote"/> with the specified name and for the repository at the specified location.
+        /// <para>
+        ///   A default fetch refspec will be added for this remote.
+        /// </para>
         /// </summary>
-        /// <param name = "name">The name of the remote to create.</param>
-        /// <param name = "url">The location of the repository.</param>
-        /// <returns>A new <see cref = "Remote" />.</returns>
+        /// <param name="name">The name of the remote to create.</param>
+        /// <param name="url">The location of the repository.</param>
+        /// <returns>A new <see cref="Remote"/>.</returns>
         public virtual Remote Add(string name, string url)
         {
             Ensure.ArgumentNotNull(name, "name");
@@ -90,27 +108,12 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   Creates a <see cref="Remote"/> with the specified name and for the repository at the specified location.
-        ///   <para>
-        ///     A default fetch refspec will be added for this remote.
-        ///   </para>
+        /// Creates a <see cref="Remote"/> with the specified name and for the repository at the specified location.
         /// </summary>
-        /// <param name = "name">The name of the remote to create.</param>
-        /// <param name = "url">The location of the repository.</param>
-        /// <returns>A new <see cref = "Remote" />.</returns>
-        [Obsolete("This method will be removed in the next release. Please use Add() instead.")]
-        public virtual Remote Create(string name, string url)
-        {
-            return Add(name, url);
-        }
-
-        /// <summary>
-        ///   Creates a <see cref="Remote"/> with the specified name and for the repository at the specified location.
-        /// </summary>
-        /// <param name = "name">The name of the remote to create.</param>
-        /// <param name = "url">The location of the repository.</param>
-        /// <param name = "fetchRefSpec">The refSpec to be used when fetching from this remote.</param>
-        /// <returns>A new <see cref = "Remote" />.</returns>
+        /// <param name="name">The name of the remote to create.</param>
+        /// <param name="url">The location of the repository.</param>
+        /// <param name="fetchRefSpec">The refSpec to be used when fetching from this remote.</param>
+        /// <returns>A new <see cref="Remote"/>.</returns>
         public virtual Remote Add(string name, string url, string fetchRefSpec)
         {
             Ensure.ArgumentNotNull(name, "name");
@@ -119,27 +122,14 @@ namespace LibGit2Sharp
 
             using (RemoteSafeHandle handle = Proxy.git_remote_create(repository.Handle, name, url))
             {
-                Proxy.git_remote_set_fetchspec(handle, fetchRefSpec);
+                Proxy.git_remote_add_fetch(handle, fetchRefSpec);
                 Proxy.git_remote_save(handle);
                 return Remote.BuildFromPtr(handle, this.repository);
             }
         }
 
         /// <summary>
-        ///   Creates a <see cref="Remote"/> with the specified name and for the repository at the specified location.
-        /// </summary>
-        /// <param name = "name">The name of the remote to create.</param>
-        /// <param name = "url">The location of the repository.</param>
-        /// <param name = "fetchRefSpec">The refSpec to be used when fetching from this remote..</param>
-        /// <returns>A new <see cref = "Remote" />.</returns>
-        [Obsolete("This method will be removed in the next release. Please use Add() instead.")]
-        public virtual Remote Create(string name, string url, string fetchRefSpec)
-        {
-            return Add(name, url);
-        }
-
-        /// <summary>
-        ///   Determines if the proposed remote name is well-formed.
+        /// Determines if the proposed remote name is well-formed.
         /// </summary>
         /// <param name="name">The name to be checked.</param>
         /// <returns>true is the name is valid; false otherwise.</returns>

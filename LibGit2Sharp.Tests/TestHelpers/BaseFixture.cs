@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using LibGit2Sharp.Core;
@@ -21,10 +24,12 @@ namespace LibGit2Sharp.Tests.TestHelpers
         public static string BareTestRepoPath { get; private set; }
         public static string StandardTestRepoWorkingDirPath { get; private set; }
         public static string StandardTestRepoPath { get; private set; }
+        public static string ShallowTestRepoPath { get; private set; }
         public static string MergedTestRepoWorkingDirPath { get; private set; }
+        public static string SubmoduleTestRepoWorkingDirPath { get; private set; }
         public static DirectoryInfo ResourcesDirectory { get; private set; }
 
-        public static readonly Signature DummySignature = new Signature("Author N. Ame", "him@there.com", TruncateSubSeconds(DateTimeOffset.Now));
+        public static bool IsFileSystemCaseSensitive { get; private set; }
 
         protected static DateTimeOffset TruncateSubSeconds(DateTimeOffset dto)
         {
@@ -34,6 +39,8 @@ namespace LibGit2Sharp.Tests.TestHelpers
 
         private static void SetUpTestEnvironment()
         {
+            IsFileSystemCaseSensitive = IsFileSystemCaseSensitiveInternal();
+
             var source = new DirectoryInfo(@"../../Resources");
             ResourcesDirectory = new DirectoryInfo(string.Format(@"Resources/{0}", Guid.NewGuid()));
             var parent = new DirectoryInfo(@"Resources");
@@ -49,21 +56,34 @@ namespace LibGit2Sharp.Tests.TestHelpers
             BareTestRepoPath = Path.Combine(ResourcesDirectory.FullName, "testrepo.git");
             StandardTestRepoWorkingDirPath = Path.Combine(ResourcesDirectory.FullName, "testrepo_wd");
             StandardTestRepoPath = Path.Combine(StandardTestRepoWorkingDirPath, ".git");
+            ShallowTestRepoPath = Path.Combine(ResourcesDirectory.FullName, "shallow.git");
             MergedTestRepoWorkingDirPath = Path.Combine(ResourcesDirectory.FullName, "mergedrepo_wd");
+            SubmoduleTestRepoWorkingDirPath = Path.Combine(ResourcesDirectory.FullName, "submodule_wd");
+        }
 
-            // The test repo under source control has its .git folder renamed to dot_git to avoid confusing git,
-            // so we need to rename it back to .git in our copy under the target folder
-            string tempDotGit = Path.Combine(StandardTestRepoWorkingDirPath, "dot_git");
-            Directory.Move(tempDotGit, StandardTestRepoPath);
-            tempDotGit = Path.Combine(MergedTestRepoWorkingDirPath, "dot_git");
-            Directory.Move(tempDotGit, Path.Combine(MergedTestRepoWorkingDirPath, ".git"));
+        private static bool IsFileSystemCaseSensitiveInternal()
+        {
+            var mixedPath = Path.Combine(Constants.TemporaryReposPath, "mIxEdCase");
+
+            if (Directory.Exists(mixedPath))
+            {
+                Directory.Delete(mixedPath);
+            }
+
+            Directory.CreateDirectory(mixedPath);
+            bool isInsensitive = Directory.Exists(mixedPath.ToLowerInvariant());
+
+            Directory.Delete(mixedPath);
+
+            return !isInsensitive;
         }
 
         protected void CreateCorruptedDeadBeefHead(string repoPath)
         {
             const string deadbeef = "deadbeef";
-            string headPath = string.Format("{0}refs/heads/{1}", repoPath, deadbeef);
-            File.WriteAllText(headPath, string.Format("{0}{0}{0}{0}{0}\n", deadbeef));
+            string headPath = string.Format("refs/heads/{0}", deadbeef);
+
+            Touch(repoPath, headPath, string.Format("{0}{0}{0}{0}{0}\n", deadbeef));
         }
 
         protected SelfCleaningDirectory BuildSelfCleaningDirectory()
@@ -76,14 +96,51 @@ namespace LibGit2Sharp.Tests.TestHelpers
             return new SelfCleaningDirectory(this, path);
         }
 
-        protected TemporaryCloneOfTestRepo BuildTemporaryCloneOfTestRepo()
+        protected string CloneBareTestRepo()
         {
-            return BuildTemporaryCloneOfTestRepo(BareTestRepoPath);
+            return Clone(BareTestRepoPath);
         }
 
-        protected TemporaryCloneOfTestRepo BuildTemporaryCloneOfTestRepo(string path)
+        protected string CloneStandardTestRepo()
         {
-            return new TemporaryCloneOfTestRepo(this, path);
+            return Clone(StandardTestRepoWorkingDirPath);
+        }
+
+        protected string CloneMergedTestRepo()
+        {
+            return Clone(MergedTestRepoWorkingDirPath);
+        }
+
+        public string CloneSubmoduleTestRepo()
+        {
+            var submoduleTarget = Path.Combine(ResourcesDirectory.FullName, "submodule_target_wd");
+            return Clone(SubmoduleTestRepoWorkingDirPath, submoduleTarget);
+        }
+
+        private string Clone(string sourceDirectoryPath, params string[] additionalSourcePaths)
+        {
+            var scd = BuildSelfCleaningDirectory();
+            var source = new DirectoryInfo(sourceDirectoryPath);
+
+            var clonePath = Path.Combine(scd.DirectoryPath, source.Name);
+            DirectoryHelper.CopyFilesRecursively(source, new DirectoryInfo(clonePath));
+
+            foreach (var additionalPath in additionalSourcePaths)
+            {
+                var additional = new DirectoryInfo(additionalPath);
+                var targetForAdditional = Path.Combine(scd.DirectoryPath, additional.Name);
+
+                DirectoryHelper.CopyFilesRecursively(additional, new DirectoryInfo(targetForAdditional));
+            }
+
+            return clonePath;
+        }
+
+        protected string InitNewRepository(bool isBare = false)
+        {
+            SelfCleaningDirectory scd = BuildSelfCleaningDirectory();
+
+            return Repository.Init(scd.DirectoryPath, isBare);
         }
 
         public void Register(string directoryPath)
@@ -91,7 +148,7 @@ namespace LibGit2Sharp.Tests.TestHelpers
             directories.Add(directoryPath);
         }
 
-        public void Dispose()
+        public virtual void Dispose()
         {
 #if LEAKS
             GC.Collect();
@@ -103,7 +160,7 @@ namespace LibGit2Sharp.Tests.TestHelpers
             }
         }
 
-        protected void InconclusiveIf(Func<bool> predicate, string message)
+        protected static void InconclusiveIf(Func<bool> predicate, string message)
         {
             if (!predicate())
             {
@@ -159,6 +216,45 @@ namespace LibGit2Sharp.Tests.TestHelpers
                 XdgConfigurationLocation = xdgLocation,
                 SystemConfigurationLocation = systemLocation,
             };
+        }
+
+        protected static string Touch(string parent, string file, string content = null)
+        {
+            string filePath = Path.Combine(parent, file);
+            string dir = Path.GetDirectoryName(filePath);
+            Debug.Assert(dir != null);
+
+            Directory.CreateDirectory(dir);
+
+            File.WriteAllText(filePath, content ?? string.Empty, Encoding.ASCII);
+
+            return filePath;
+        }
+
+        protected static void AssertReflogEntryIsCreated(IEnumerable<ReflogEntry> reflog, string targetSha, 
+            string logMessage, string fromSha = null)
+        {
+            var reflogEntry = reflog.First();
+
+            if (!string.IsNullOrEmpty(fromSha))
+            {
+                Assert.Equal(fromSha, reflogEntry.From.Sha);
+            }
+
+            Assert.Equal(targetSha, reflogEntry.To.Sha);
+            Assert.NotNull(reflogEntry.Commiter.Email);
+            Assert.NotNull(reflogEntry.Commiter.Name);
+            Assert.Equal(logMessage, reflogEntry.Message);
+        }
+
+        protected string Expected(string filename)
+        {
+            return File.ReadAllText(Path.Combine(ResourcesDirectory.FullName, "expected/" + filename));
+        }
+
+        protected string Expected(string filenameFormat, params object[] args)
+        {
+            return Expected(string.Format(CultureInfo.InvariantCulture, filenameFormat, args));
         }
     }
 }

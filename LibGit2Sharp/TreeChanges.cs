@@ -11,8 +11,8 @@ using LibGit2Sharp.Core.Handles;
 namespace LibGit2Sharp
 {
     /// <summary>
-    ///   Holds the result of a diff between two trees.
-    ///   <para>Changes at the granularity of the file can be obtained through the different sub-collections <see cref="Added"/>, <see cref="Deleted"/> and <see cref="Modified"/>.</para>
+    /// Holds the result of a diff between two trees.
+    /// <para>Changes at the granularity of the file can be obtained through the different sub-collections <see cref="Added"/>, <see cref="Deleted"/> and <see cref="Modified"/>.</para>
     /// </summary>
     [DebuggerDisplay("{DebuggerDisplay,nq}")]
     public class TreeChanges : IEnumerable<TreeEntryChanges>
@@ -22,14 +22,13 @@ namespace LibGit2Sharp
         private readonly List<TreeEntryChanges> deleted = new List<TreeEntryChanges>();
         private readonly List<TreeEntryChanges> modified = new List<TreeEntryChanges>();
         private readonly List<TreeEntryChanges> typeChanged = new List<TreeEntryChanges>();
+        private readonly List<TreeEntryChanges> unmodified = new List<TreeEntryChanges>();
         private int linesAdded;
         private int linesDeleted;
 
         private readonly IDictionary<ChangeKind, Action<TreeChanges, TreeEntryChanges>> fileDispatcher = Build();
 
         private readonly StringBuilder fullPatchBuilder = new StringBuilder();
-        private static readonly Comparison<TreeEntryChanges> ordinalComparer =
-            (one, other) => string.CompareOrdinal(one.Path, other.Path);
 
         private static IDictionary<ChangeKind, Action<TreeChanges, TreeEntryChanges>> Build()
         {
@@ -39,32 +38,44 @@ namespace LibGit2Sharp
                            { ChangeKind.Deleted, (de, d) => de.deleted.Add(d) },
                            { ChangeKind.Added, (de, d) => de.added.Add(d) },
                            { ChangeKind.TypeChanged, (de, d) => de.typeChanged.Add(d) },
+                           { ChangeKind.Unmodified, (de, d) => de.unmodified.Add(d) },
                        };
         }
 
         /// <summary>
-        ///   Needed for mocking purposes.
+        /// Needed for mocking purposes.
         /// </summary>
         protected TreeChanges()
         { }
 
         internal TreeChanges(DiffListSafeHandle diff)
         {
+            Proxy.git_diff_foreach(diff, FileCallback, null, DataCallback);
             Proxy.git_diff_print_patch(diff, PrintCallBack);
-            added.Sort(ordinalComparer);
-            deleted.Sort(ordinalComparer);
-            modified.Sort(ordinalComparer);
+        }
+
+        private int DataCallback(GitDiffDelta delta, GitDiffRange range, GitDiffLineOrigin lineOrigin, IntPtr content, UIntPtr contentLen, IntPtr payload)
+        {
+            var filePath = FilePathMarshaler.FromNative(delta.NewFile.Path);
+
+            AddLineChange(this[filePath], lineOrigin);
+
+            return 0;
+        }
+
+        private int FileCallback(GitDiffDelta delta, float progress, IntPtr payload)
+        {
+            AddFileChange(delta);
+            return 0;
         }
 
         private int PrintCallBack(GitDiffDelta delta, GitDiffRange range, GitDiffLineOrigin lineorigin, IntPtr content, UIntPtr contentlen, IntPtr payload)
         {
             string formattedoutput = Utf8Marshaler.FromNative(content, (int)contentlen);
+            var filePath = FilePathMarshaler.FromNative(delta.NewFile.Path);
 
-            TreeEntryChanges currentChange = AddFileChange(delta, lineorigin);
-            AddLineChange(currentChange, lineorigin);
-
-            currentChange.AppendToPatch(formattedoutput);
             fullPatchBuilder.Append(formattedoutput);
+            this[filePath].AppendToPatch(formattedoutput);
 
             return 0;
         }
@@ -85,20 +96,17 @@ namespace LibGit2Sharp
             }
         }
 
-        private TreeEntryChanges AddFileChange(GitDiffDelta delta, GitDiffLineOrigin lineorigin)
+        private void AddFileChange(GitDiffDelta delta)
         {
             var newFilePath = FilePathMarshaler.FromNative(delta.NewFile.Path);
-
-            if (lineorigin != GitDiffLineOrigin.GIT_DIFF_LINE_FILE_HDR)
-                return this[newFilePath];
 
             var oldFilePath = FilePathMarshaler.FromNative(delta.OldFile.Path);
             var newMode = (Mode)delta.NewFile.Mode;
             var oldMode = (Mode)delta.OldFile.Mode;
-            var newOid = new ObjectId(delta.NewFile.Oid);
-            var oldOid = new ObjectId(delta.OldFile.Oid);
+            var newOid = delta.NewFile.Oid;
+            var oldOid = delta.OldFile.Oid;
 
-            if (delta.Status == ChangeKind.Untracked)
+            if (delta.Status == ChangeKind.Untracked || delta.Status == ChangeKind.Ignored)
             {
                 delta.Status = ChangeKind.Added;
             }
@@ -107,24 +115,23 @@ namespace LibGit2Sharp
 
             fileDispatcher[delta.Status](this, diffFile);
             changes.Add(newFilePath, diffFile);
-            return diffFile;
         }
 
         #region IEnumerable<Tag> Members
 
         /// <summary>
-        ///   Returns an enumerator that iterates through the collection.
+        /// Returns an enumerator that iterates through the collection.
         /// </summary>
-        /// <returns>An <see cref = "IEnumerator{T}" /> object that can be used to iterate through the collection.</returns>
+        /// <returns>An <see cref="IEnumerator{T}"/> object that can be used to iterate through the collection.</returns>
         public virtual IEnumerator<TreeEntryChanges> GetEnumerator()
         {
             return changes.Values.GetEnumerator();
         }
 
         /// <summary>
-        ///   Returns an enumerator that iterates through the collection.
+        /// Returns an enumerator that iterates through the collection.
         /// </summary>
-        /// <returns>An <see cref = "IEnumerator" /> object that can be used to iterate through the collection.</returns>
+        /// <returns>An <see cref="IEnumerator"/> object that can be used to iterate through the collection.</returns>
         IEnumerator IEnumerable.GetEnumerator()
         {
             return GetEnumerator();
@@ -133,7 +140,7 @@ namespace LibGit2Sharp
         #endregion
 
         /// <summary>
-        ///   Gets the <see cref = "TreeEntryChanges"/> corresponding to the specified <paramref name = "path"/>.
+        /// Gets the <see cref="TreeEntryChanges"/> corresponding to the specified <paramref name="path"/>.
         /// </summary>
         public virtual TreeEntryChanges this[string path]
         {
@@ -155,7 +162,7 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   List of <see cref = "TreeEntryChanges"/> that have been been added.
+        /// List of <see cref="TreeEntryChanges"/> that have been been added.
         /// </summary>
         public virtual IEnumerable<TreeEntryChanges> Added
         {
@@ -163,7 +170,7 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   List of <see cref = "TreeEntryChanges"/> that have been deleted.
+        /// List of <see cref="TreeEntryChanges"/> that have been deleted.
         /// </summary>
         public virtual IEnumerable<TreeEntryChanges> Deleted
         {
@@ -171,7 +178,7 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   List of <see cref = "TreeEntryChanges"/> that have been modified.
+        /// List of <see cref="TreeEntryChanges"/> that have been modified.
         /// </summary>
         public virtual IEnumerable<TreeEntryChanges> Modified
         {
@@ -179,7 +186,7 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   List of <see cref = "TreeEntryChanges"/> which type have been changed.
+        /// List of <see cref="TreeEntryChanges"/> which type have been changed.
         /// </summary>
         public virtual IEnumerable<TreeEntryChanges> TypeChanged
         {
@@ -187,7 +194,7 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   The total number of lines added in this diff.
+        /// The total number of lines added in this diff.
         /// </summary>
         public virtual int LinesAdded
         {
@@ -195,7 +202,7 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   The total number of lines added in this diff.
+        /// The total number of lines added in this diff.
         /// </summary>
         public virtual int LinesDeleted
         {
@@ -203,7 +210,7 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   The full patch file of this diff.
+        /// The full patch file of this diff.
         /// </summary>
         public virtual string Patch
         {

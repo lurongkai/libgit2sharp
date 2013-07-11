@@ -8,6 +8,125 @@
  - CI server: <http://teamcity.codebetter.com/project.html?projectId=project127&guest=1>
  - @libgit2sharp: <http://twitter.com/libgit2sharp>
 
+## v0.12.0 - ([diff](https://github.com/libgit2/libgit2sharp/compare/v0.11.0...v0.12.0))
+
+### Additions
+
+ - Introduce repo.Info.IsShallow
+ - Teach repo.Reset to append to the Reflog
+ - Introduce repo.ObjectDatabase.CreateTag()
+ - Make repo.Diff.Compare() able to define the expected number of context and interhunk lines (#423)
+
+### Changes
+
+ - Obsolete TreeEntryTargetType.Tag
+ - Update libgit2 binaries to libgit2/libgit2@9d9fff3
+
+### Fixes
+
+ - Change probing mechanism to rely on specifically named versions of libgit2 binaries (#241)
+ - Ensure that two versions of LibGit2Sharp can run side by side (#241)
+
+## v0.11.0 - ([diff](https://github.com/libgit2/libgit2sharp/compare/v0.10.0...v0.11.0))
+
+### Additions
+
+ - Introduce Repository.Refs.Log()
+ - Teach Checkout() and Commit() to append to the reflog
+ - Teach Refs.Add(), Refs.UpdateTarget() to optionally append to the reflog
+ - Add Repository.Submodules namespace
+ - Add submodule support to Index.Stage()
+ - Add TreeDefinition.Add(Submodule) and TreeDefinition.AddGitLink()
+ - Introduce ExplicitPathsOptions type to control handling of unmatched pathspecs
+ - Make Index.Remove(), Index.Unstage()/Stage(), Diff.Compare() and Reset() accept ExplicitPathsOptions
+ - Add an indexer to the StashCollection
+ - Add the UpstreamBranchCanonicalName property to Branch
+ - Make Push accept Branch instances
+ - Introduce Reference.IsTag, Reference.IsLocalBranch and Reference.IsRemoteTrackingBranch
+ - Add Repository.IsValid()
+ - Refine build resilience on Linux
+
+### Changes
+
+ - Obsolete Tree.Trees and Tree.Blobs properties
+ - Replace GitObjectType with ObjectType and TreeEntryTargetType
+ - Rename TreeEntry.Type and TreeEntryDefinition.Type to *.TargetType
+ - Move Repository.Conflicts to Index.Conflicts
+ - Move Remote.Fetch() in Repository.Network
+ - Modify StashCollection.Remove() to accept an integer param rather than a revparse expression
+ - Rename BranchUpdater.Upstream to TrackedBranch
+ - Rename BranchUpdater.UpstreamMergeBranch to UpstreamBranch
+ - Rename BranchUpdater.UpstreamRemote to Remote
+
+### Fixes
+
+ - Make Commit() append to the reflog (#371)
+ - Make Index.Remove() able to only remove from index (#270)
+ - Teach Index.Remove() to clear the associated conflicts (#325)
+ - Make Index.Remove() able to remove folders (#327)
+ - Fix repo.Checkout() when working against repo.Head
+ - Fix update of the target of repo.Refs.Head
+ - Teach Checkout() to cope with revparse syntax
+ - Support TreeEntry.Target for GitLink entries
+
+## v0.10.0 - ([diff](https://github.com/libgit2/libgit2sharp/compare/v0.9.5...v0.10.0))
+
+### Additions
+
+ - Update working directory on checkout
+ - New network related features: clone, fetch, push, list remote references
+ - Expose the heads that have been updated during the last fetch in Repository.Network.FetchHeads
+ - Introduce Repository.Network.Remotes.IsValidName()
+ - New .gitignore related features: temporary rules, path checking
+ - Add support for custom, managed ODB backends
+ - Add revparse support in Repository.Lookup()
+ - Improve Repository.Commit(): add merged branches as parents, cleanup merge data
+ - Introduce Blob.IsBinary
+ - Add strongly-typed exceptions (NonFastForwardException, UnmergedIndexEntriesException, ...)
+ - Add basic stashing support: add, retrieve, list and remove
+ - Add git clean support in Repository.RemoveUntrackedFiles()
+ - Add shortcut to HEAD in Repository.Refs.Head
+ - Introduce Repository.Refs.IsValidName()
+ - Add Repository.Refs.FromGlob() to enumerate references matching a specified glob
+ - Add support for XDG configuration store
+ - Make Config.Get() and Config.Delete() able to target a specific store
+ - Diff.Compare() enhancements: work against workdir and index, consider untracked changes, expose typechanges
+ - Allow retrieval of the remote of a non-local branch through Branch.Remote
+ - Allow modification of the branch properties through Repository.Branches.Update()
+ - Expose merge related information: Repository.Index.IsFullyMerged, Repository.Conflicts, IndexEntry.StageLevel
+ - Expose the heads being merged in Repository.MergeHeads
+ - Introduce IndexEntry.Mode
+ - Add more repository information: Repository.Info.CurrentOperation, Repository.Info.Message, Repository.Info.IsHeadOrphaned
+ - Allow passing an optional RepositoryOptions to Repository.Init()
+ - Allow reset filtering by passing a list of paths to consider
+
+### Changes
+
+ - Make TreeChanges and TreeEntryChanges expose native paths
+ - Make Repository.Reset accept a Commit instead of a string
+ - Stop sorting collections (references, remotes, notes ...)
+ - Move AheadBy/BehindBy into new Branch.TrackingDetails
+ - Move Repository.Remotes to Repository.Network.Remotes
+ - Move Configuration.HasXXXConfig() to Configuration.HasConfig()
+ - Rename CommitCollection to CommitLog
+ - Rename LibGit2Exception to LibGit2SharpException
+ - Rename Delete() to Unset() in Configuration
+ - Rename Delete() to Remove() in TagCollection, ReferenceCollection, NoteCollection, BranchCollection
+ - Rename Create() to Add() in TagCollection, BranchCollection, ReferenceCollection, RemoteCollection, NoteCollection
+ - Obsolete RepositoryInformation.IsEmpty, DiffTarget, IndexEntry.State, Commit.ParentsCount
+
+### Fixes
+
+ - Allow abstracting LibGit2Sharp in testing context (#138)
+ - Ease the detection of a specific key in a specific store (#162)
+ - Expose libgit2 error information through the LibGit2SharpException.Data property(#137)
+ - Preserve non-ASCII characters in commit messages (#191)
+ - Fix retrieval of the author of a commit (#242)
+ - Prevent duplicated tree entries in commits (#243)
+ - Fix Repository.Discover behaviour with UNC paths (#256)
+ - Make Index.Unstage work against an orphaned head (#257)
+ - Make IsTracking & TrackedBranch property not throw for a detached head (#266, #268)
+
 ## v0.9.5 - ([diff](https://github.com/libgit2/libgit2sharp/compare/v0.9.0...v0.9.5))
 
 ### Additions
@@ -36,7 +155,7 @@
  - Direct creation or Blobs, Trees and Commits without the workdir nor index involvement (#135)
  - New Diff namespace: supports tree-to-tree, tree-to-index and blob-to-blob comparisons (#136)
  - Add Commits.FindCommonAncestor() (#149)
- 
+
 ### Changes
 
  - Deprecate repo.Branches.Checkout() in favor of repo.Checkout()

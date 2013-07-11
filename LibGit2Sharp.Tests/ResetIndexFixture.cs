@@ -10,9 +10,9 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void ResetANewlyInitializedBareRepositoryThrows()
         {
-            SelfCleaningDirectory scd = BuildSelfCleaningDirectory();
+            string repoPath = InitNewRepository(true);
 
-            using (Repository repo = Repository.Init(scd.DirectoryPath, true))
+            using (var repo = new Repository(repoPath))
             {
                 Assert.Throws<BareRepositoryException>(() => repo.Reset());
             }
@@ -21,9 +21,9 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void ResetANewlyInitializedNonBareRepositoryThrows()
         {
-            SelfCleaningDirectory scd = BuildSelfCleaningDirectory();
+            string repoPath = InitNewRepository(false);
 
-            using (Repository repo = Repository.Init(scd.DirectoryPath, false))
+            using (var repo = new Repository(repoPath))
             {
                 Assert.Throws<LibGit2SharpException>(() => repo.Reset());
             }
@@ -61,32 +61,35 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void ResetTheIndexWithTheHeadUnstagesEverything()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo(StandardTestRepoWorkingDirPath);
-
-            using (var repo = new Repository(path.DirectoryPath))
+            string path = CloneStandardTestRepo();
+            using (var repo = new Repository(path))
             {
                 RepositoryStatus oldStatus = repo.Index.RetrieveStatus();
                 Assert.Equal(3, oldStatus.Where(IsStaged).Count());
+
+                var reflogEntriesCount = repo.Refs.Log(repo.Refs.Head).Count();
 
                 repo.Reset();
 
                 RepositoryStatus newStatus = repo.Index.RetrieveStatus();
                 Assert.Equal(0, newStatus.Where(IsStaged).Count());
+
+                // Assert that no reflog entry is created
+                Assert.Equal(reflogEntriesCount, repo.Refs.Log(repo.Refs.Head).Count());
             }
         }
 
         [Fact]
         public void CanResetTheIndexToTheContentOfACommitWithCommitishAsArgument()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo(StandardTestRepoWorkingDirPath);
-
-            using (var repo = new Repository(path.DirectoryPath))
+            string path = CloneStandardTestRepo();
+            using (var repo = new Repository(path))
             {
                 repo.Reset("be3563a");
 
                 RepositoryStatus newStatus = repo.Index.RetrieveStatus();
 
-                var expected = new[] { "1.txt", Path.Combine("1", "branch_file.txt"), "deleted_staged_file.txt", 
+                var expected = new[] { "1.txt", Path.Combine("1", "branch_file.txt"), "deleted_staged_file.txt",
                     "deleted_unstaged_file.txt", "modified_staged_file.txt", "modified_unstaged_file.txt" };
 
                 Assert.Equal(expected.Length, newStatus.Where(IsStaged).Count());
@@ -97,15 +100,14 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanResetTheIndexToTheContentOfACommitWithCommitAsArgument()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo(StandardTestRepoWorkingDirPath);
-
-            using (var repo = new Repository(path.DirectoryPath))
+            string path = CloneStandardTestRepo();
+            using (var repo = new Repository(path))
             {
                 repo.Reset(repo.Lookup<Commit>("be3563a"));
 
                 RepositoryStatus newStatus = repo.Index.RetrieveStatus();
 
-                var expected = new[] { "1.txt", Path.Combine("1", "branch_file.txt"), "deleted_staged_file.txt", 
+                var expected = new[] { "1.txt", Path.Combine("1", "branch_file.txt"), "deleted_staged_file.txt",
                     "deleted_unstaged_file.txt", "modified_staged_file.txt", "modified_unstaged_file.txt" };
 
                 Assert.Equal(expected.Length, newStatus.Where(IsStaged).Count());
@@ -116,9 +118,8 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanResetTheIndexToASubsetOfTheContentOfACommitWithCommitishAsArgument()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo(StandardTestRepoWorkingDirPath);
-
-            using (var repo = new Repository(path.DirectoryPath))
+            string path = CloneStandardTestRepo();
+            using (var repo = new Repository(path))
             {
                 repo.Reset("5b5b025", new[]{ "new.txt" });
 
@@ -128,16 +129,26 @@ namespace LibGit2Sharp.Tests
         }
 
         [Fact]
-        public void CanResetTheIndexToASubsetOfTheContentOfACommitWithCommitAsArgument()
+        public void CanResetTheIndexToASubsetOfTheContentOfACommitWithCommitAsArgumentAndLaxUnmatchedExplicitPathsValidation()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo(StandardTestRepoWorkingDirPath);
-
-            using (var repo = new Repository(path.DirectoryPath))
+            string path = CloneStandardTestRepo();
+            using (var repo = new Repository(path))
             {
-                repo.Reset(repo.Lookup<Commit>("5b5b025"), new[] { "new.txt" });
+                repo.Reset(repo.Lookup<Commit>("5b5b025"), new[] { "new.txt", "non-existent-path-28.txt" },
+                    new ExplicitPathsOptions { ShouldFailOnUnmatchedPath = false });
 
                 Assert.Equal("a8233120f6ad708f843d861ce2b7228ec4e3dec6", repo.Index["README"].Id.Sha);
                 Assert.Equal("fa49b077972391ad58037050f2a75f74e3671e92", repo.Index["new.txt"].Id.Sha);
+            }
+        }
+
+        [Fact]
+        public void ResettingTheIndexToASubsetOfTheContentOfACommitWithCommitAsArgumentAndStrictUnmatchedPathspecsValidationThrows()
+        {
+            using (var repo = new Repository(CloneStandardTestRepo()))
+            {
+                Assert.Throws<UnmatchedPathException>(() =>
+                    repo.Reset(repo.Lookup<Commit>("5b5b025"), new[] { "new.txt", "non-existent-path-28.txt" }, new ExplicitPathsOptions()));
             }
         }
     }

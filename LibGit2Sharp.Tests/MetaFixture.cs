@@ -1,10 +1,10 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Reflection;
 using System.Text;
 using Xunit;
-using System.Reflection;
-using System;
-using System.Linq;
-using System.Collections.Generic;
 
 namespace LibGit2Sharp.Tests
 {
@@ -12,7 +12,11 @@ namespace LibGit2Sharp.Tests
     {
         private static readonly Type[] excludedTypes = new[]
         {
+            typeof(CommitFilter),
+            typeof(CommitRewriteInfo),
+            typeof(CompareOptions),
             typeof(Credentials),
+            typeof(ExplicitPathsOptions),
             typeof(Filter),
             typeof(ObjectId),
             typeof(Repository),
@@ -133,7 +137,7 @@ namespace LibGit2Sharp.Tests
 
             foreach (var kvp in nonTestableTypes)
             {
-                sb.AppendFormat("'{0}' cannot be easily abstracted in a testing context. Please make sure it either has a public constructor, or an empty protected constructor.{1}", 
+                sb.AppendFormat("'{0}' cannot be easily abstracted in a testing context. Please make sure it either has a public constructor, or an empty protected constructor.{1}",
                     kvp.Key, Environment.NewLine);
 
                 foreach (string methodName in kvp.Value)

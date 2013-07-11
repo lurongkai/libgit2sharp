@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Linq;
+using System.Text;
 using LibGit2Sharp.Tests.TestHelpers;
 using Xunit;
 using Xunit.Extensions;
@@ -31,8 +32,8 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanRetrieveTheStatusOfTheWholeWorkingDirectory()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo(StandardTestRepoWorkingDirPath);
-            using (var repo = new Repository(path.RepositoryPath))
+            string path = CloneStandardTestRepo();
+            using (var repo = new Repository(path))
             {
                 const string file = "modified_staged_file.txt";
 
@@ -75,9 +76,9 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanRetrieveTheStatusOfANewRepository()
         {
-            SelfCleaningDirectory scd = BuildSelfCleaningDirectory();
+            string repoPath = InitNewRepository();
 
-            using (Repository repo = Repository.Init(scd.DirectoryPath))
+            using (var repo = new Repository(repoPath))
             {
                 RepositoryStatus status = repo.Index.RetrieveStatus();
                 Assert.NotNull(status);
@@ -96,24 +97,18 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void RetrievingTheStatusOfARepositoryReturnNativeFilePaths()
         {
-            // Initialize a new repository
-            SelfCleaningDirectory scd = BuildSelfCleaningDirectory();
-
-            const string directoryName = "directory";
-            const string fileName = "Testfile.txt";
-
-            // Create a file and insert some content
-            string directoryPath = Path.Combine(scd.RootedDirectoryPath, directoryName);
-            string filePath = Path.Combine(directoryPath, fileName);
-
-            Directory.CreateDirectory(directoryPath);
-            File.WriteAllText(filePath, "Anybody out there?");
+            // Build relative path
+            string relFilePath = Path.Combine("directory", "Testfile.txt");
 
             // Open the repository
-            using (Repository repo = Repository.Init(scd.DirectoryPath))
+            string repoPath = InitNewRepository();
+
+            using (var repo = new Repository(repoPath))
             {
+                Touch(repo.Info.WorkingDirectory, relFilePath, "Anybody out there?");
+
                 // Add the file to the index
-                repo.Index.Stage(filePath);
+                repo.Index.Stage(relFilePath);
 
                 // Get the repository status
                 RepositoryStatus repoStatus = repo.Index.RetrieveStatus();
@@ -121,7 +116,7 @@ namespace LibGit2Sharp.Tests
                 Assert.Equal(1, repoStatus.Count());
                 StatusEntry statusEntry = repoStatus.Single();
 
-                Assert.Equal(Path.Combine(directoryName, fileName), statusEntry.FilePath);
+                Assert.Equal(relFilePath, statusEntry.FilePath);
 
                 Assert.Equal(statusEntry.FilePath, repoStatus.Added.Single());
             }
@@ -130,19 +125,17 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void RetrievingTheStatusOfAnEmptyRepositoryHonorsTheGitIgnoreDirectives()
         {
-            SelfCleaningDirectory scd = BuildSelfCleaningDirectory();
+            string repoPath = InitNewRepository();
 
-            using (Repository repo = Repository.Init(scd.DirectoryPath))
+            using (var repo = new Repository(repoPath))
             {
                 const string relativePath = "look-ma.txt";
-                string fullFilePath = Path.Combine(repo.Info.WorkingDirectory, relativePath);
-                File.WriteAllText(fullFilePath, "I'm going to be ignored!");
+                Touch(repo.Info.WorkingDirectory, relativePath, "I'm going to be ignored!");
 
                 RepositoryStatus status = repo.Index.RetrieveStatus();
                 Assert.Equal(new[] { relativePath }, status.Untracked);
 
-                string gitignorePath = Path.Combine(repo.Info.WorkingDirectory, ".gitignore");
-                File.WriteAllText(gitignorePath, "*.txt" + Environment.NewLine);
+                Touch(repo.Info.WorkingDirectory, ".gitignore", "*.txt" + Environment.NewLine);
 
                 RepositoryStatus newStatus = repo.Index.RetrieveStatus();
                 Assert.Equal(".gitignore", newStatus.Untracked.Single());
@@ -155,12 +148,11 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void RetrievingTheStatusOfTheRepositoryHonorsTheGitIgnoreDirectives()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo(StandardTestRepoWorkingDirPath);
-            using (var repo = new Repository(path.RepositoryPath))
+            string path = CloneStandardTestRepo();
+            using (var repo = new Repository(path))
             {
                 string relativePath = Path.Combine("1", "look-ma.txt");
-                string fullFilePath = Path.Combine(repo.Info.WorkingDirectory, relativePath);
-                File.WriteAllText(fullFilePath, "I'm going to be ignored!");
+                Touch(repo.Info.WorkingDirectory, relativePath, "I'm going to be ignored!");
 
                 /*
                  * $ git status --ignored
@@ -197,8 +189,7 @@ namespace LibGit2Sharp.Tests
 
                 Assert.Equal(new[]{relativePath, "new_untracked_file.txt"}, status.Untracked);
 
-                string gitignorePath = Path.Combine(repo.Info.WorkingDirectory, ".gitignore");
-                File.WriteAllText(gitignorePath, "*.txt" + Environment.NewLine);
+                Touch(repo.Info.WorkingDirectory, ".gitignore", "*.txt" + Environment.NewLine);
 
                 /*
                  * $ git status --ignored
@@ -246,16 +237,13 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void RetrievingTheStatusOfAnAmbiguousFileThrows()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo(StandardTestRepoWorkingDirPath);
-            using (var repo = new Repository(path.RepositoryPath))
+            string path = CloneStandardTestRepo();
+            using (var repo = new Repository(path))
             {
-                string relativePath = Path.Combine("1", "ambiguous1.txt");
-                string fullFilePath = Path.Combine(repo.Info.WorkingDirectory, relativePath);
-                File.WriteAllText(fullFilePath, "I don't like brackets.");
+                Touch(repo.Info.WorkingDirectory, "1/ambiguous1.txt", "I don't like brackets.");
 
-                relativePath = Path.Combine("1", "ambiguous[1].txt");
-                fullFilePath = Path.Combine(repo.Info.WorkingDirectory, relativePath);
-                File.WriteAllText(fullFilePath, "Brackets all the way.");
+                string relativePath = Path.Combine("1", "ambiguous[1].txt");
+                Touch(repo.Info.WorkingDirectory, relativePath, "Brackets all the way.");
 
                 Assert.Throws<AmbiguousSpecificationException>(() => repo.Index.RetrieveStatus(relativePath));
             }
@@ -270,29 +258,80 @@ namespace LibGit2Sharp.Tests
             FileStatus expectedCamelCasedFileStatus
             )
         {
-            SelfCleaningDirectory scd = BuildSelfCleaningDirectory();
-
             string lowerCasedPath;
+            const string lowercasedFilename = "plop";
 
-            using (Repository repo = Repository.Init(scd.DirectoryPath))
+            string repoPath = InitNewRepository();
+
+            using (var repo = new Repository(repoPath))
             {
                 repo.Config.Set("core.ignorecase", shouldIgnoreCase);
 
-                lowerCasedPath = Path.Combine(repo.Info.WorkingDirectory, "plop");
+                lowerCasedPath = Touch(repo.Info.WorkingDirectory, lowercasedFilename);
 
-                File.WriteAllText(lowerCasedPath, string.Empty);
-
-                repo.Index.Stage(lowerCasedPath);
-                repo.Commit("initial", DummySignature, DummySignature);
+                repo.Index.Stage(lowercasedFilename);
+                repo.Commit("initial", Constants.Signature, Constants.Signature);
             }
 
-            using (var repo = new Repository(scd.DirectoryPath))
+            using (var repo = new Repository(repoPath))
             {
-                string camelCasedPath = Path.Combine(repo.Info.WorkingDirectory, "Plop");
+                const string upercasedFilename = "Plop";
+
+                string camelCasedPath = Path.Combine(repo.Info.WorkingDirectory, upercasedFilename);
                 File.Move(lowerCasedPath, camelCasedPath);
 
-                Assert.Equal(expectedlowerCasedFileStatus, repo.Index.RetrieveStatus("plop"));
-                Assert.Equal(expectedCamelCasedFileStatus, repo.Index.RetrieveStatus("Plop"));
+                Assert.Equal(expectedlowerCasedFileStatus, repo.Index.RetrieveStatus(lowercasedFilename));
+                Assert.Equal(expectedCamelCasedFileStatus, repo.Index.RetrieveStatus(upercasedFilename));
+
+                AssertStatus(shouldIgnoreCase, expectedlowerCasedFileStatus, repo, camelCasedPath.ToLowerInvariant());
+                AssertStatus(shouldIgnoreCase, expectedCamelCasedFileStatus, repo, camelCasedPath.ToUpperInvariant());
+            }
+        }
+
+        private static void AssertStatus(bool shouldIgnoreCase, FileStatus expectedFileStatus, IRepository repo, string path)
+        {
+            try
+            {
+                Assert.Equal(expectedFileStatus, repo.Index.RetrieveStatus(path));
+            }
+            catch (ArgumentException)
+            {
+                Assert.False(shouldIgnoreCase);
+            }
+        }
+
+        [Fact]
+        public void RetrievingTheStatusOfTheRepositoryHonorsTheGitIgnoreDirectivesThroughoutDirectories()
+        {
+            char dirSep = Path.DirectorySeparatorChar;
+
+            string path = CloneStandardTestRepo();
+            using (var repo = new Repository(path))
+            {
+                Touch(repo.Info.WorkingDirectory, "bin/look-ma.txt", "I'm going to be ignored!");
+                Touch(repo.Info.WorkingDirectory, "bin/what-about-me.txt", "Huh?");
+
+                const string gitIgnore = ".gitignore";
+                Touch(repo.Info.WorkingDirectory, gitIgnore, "bin");
+
+                Assert.Equal(FileStatus.Ignored, repo.Index.RetrieveStatus("bin/look-ma.txt"));
+                Assert.Equal(FileStatus.Ignored, repo.Index.RetrieveStatus("bin/what-about-me.txt"));
+
+                RepositoryStatus newStatus = repo.Index.RetrieveStatus();
+                Assert.Equal(new[] { "bin" + dirSep }, newStatus.Ignored);
+
+                var sb = new StringBuilder();
+                sb.AppendLine("bin/*");
+                sb.AppendLine("!bin/w*");
+                Touch(repo.Info.WorkingDirectory, gitIgnore, sb.ToString());
+
+                Assert.Equal(FileStatus.Ignored, repo.Index.RetrieveStatus("bin/look-ma.txt"));
+                Assert.Equal(FileStatus.Untracked, repo.Index.RetrieveStatus("bin/what-about-me.txt"));
+
+                newStatus = repo.Index.RetrieveStatus();
+
+                Assert.Equal(new[] { "bin" + dirSep + "look-ma.txt" }, newStatus.Ignored);
+                Assert.True(newStatus.Untracked.Contains("bin" + dirSep + "what-about-me.txt" ));
             }
         }
     }

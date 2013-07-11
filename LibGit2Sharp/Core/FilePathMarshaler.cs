@@ -1,16 +1,18 @@
 ﻿using System;
+using System.Globalization;
 using System.Runtime.InteropServices;
 
 namespace LibGit2Sharp.Core
 {
     /// <summary>
-    ///   This marshaler is to be used for capturing a UTF-8 string owned by libgit2 and
-    ///   converting it to a managed FilePath instance. The marshaler will not attempt to
-    ///   free the native pointer after conversion, because the memory is owned by libgit2.
+    /// This marshaler is to be used for capturing a UTF-8 string owned by libgit2 and
+    /// converting it to a managed FilePath instance. The marshaler will not attempt to
+    /// free the native pointer after conversion, because the memory is owned by libgit2.
     ///
-    ///   Use this marshaler for return values, for example:
-    ///   [return: MarshalAs(UnmanagedType.CustomMarshaler,
-    ///                      MarshalTypeRef = typeof(FilePathNoCleanupMarshaler))]
+    /// Use this marshaler for return values, for example:
+    /// [return: MarshalAs(UnmanagedType.CustomMarshaler,
+    ///                    MarshalCookie = UniqueId.UniqueIdentifier,
+    ///                    MarshalTypeRef = typeof(FilePathNoCleanupMarshaler))]
     /// </summary>
     internal class FilePathNoCleanupMarshaler : FilePathMarshaler
     {
@@ -31,17 +33,18 @@ namespace LibGit2Sharp.Core
     }
 
     /// <summary>
-    ///   This marshaler is to be used for sending managed FilePath instances to libgit2.
-    ///   The marshaler will allocate a buffer in native memory to hold the UTF-8 string
-    ///   and perform the encoding conversion using that buffer as the target. The pointer
-    ///   received by libgit2 will be to this buffer. After the function call completes, the
-    ///   native buffer is freed.
+    /// This marshaler is to be used for sending managed FilePath instances to libgit2.
+    /// The marshaler will allocate a buffer in native memory to hold the UTF-8 string
+    /// and perform the encoding conversion using that buffer as the target. The pointer
+    /// received by libgit2 will be to this buffer. After the function call completes, the
+    /// native buffer is freed.
     ///
-    ///   Use this marshaler for function parameters, for example:
-    ///   [DllImport(libgit2)]
-    ///   internal static extern int git_index_open(out IndexSafeHandle index,
-    ///       [MarshalAs(UnmanagedType.CustomMarshaler,
-    ///                  MarshalTypeRef = typeof(FilePathMarshaler))] FilePath indexpath);
+    /// Use this marshaler for function parameters, for example:
+    /// [DllImport(libgit2)]
+    /// internal static extern int git_index_open(out IndexSafeHandle index,
+    ///     [MarshalAs(UnmanagedType.CustomMarshaler,
+    ///                MarshalCookie = UniqueId.UniqueIdentifier,
+    ///                MarshalTypeRef = typeof(FilePathMarshaler))] FilePath indexpath);
     /// </summary>
     internal class FilePathMarshaler : ICustomMarshaler
     {
@@ -83,7 +86,14 @@ namespace LibGit2Sharp.Core
 
             if (null == filePath)
             {
-                throw new MarshalDirectiveException("FilePathMarshaler must be used on a FilePath.");
+                var expectedType = typeof(FilePath);
+                var actualType = managedObj.GetType();
+
+                throw new MarshalDirectiveException(
+                    string.Format(CultureInfo.InvariantCulture,
+                    "FilePathMarshaler must be used on a FilePath. Expected '{0}' from '{1}'; received '{2}' from '{3}'.",
+                    expectedType.FullName, expectedType.Assembly.Location,
+                    actualType.FullName, actualType.Assembly.Location));
             }
 
             return FromManaged(filePath);

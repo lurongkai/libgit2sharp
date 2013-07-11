@@ -49,6 +49,7 @@
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Xml" />
     <Reference Include="xunit">
       <HintPath>..\Lib\xUnit\xunit.dll</HintPath>
     </Reference>
@@ -58,8 +59,16 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CheckoutFixture.cs" />
+    <Compile Include="FilterBranchFixture.cs" />
+    <Compile Include="RemoveFixture.cs" />
+    <Compile Include="RemoteFixture.cs" />
+    <Compile Include="PushFixture.cs" />
+    <Compile Include="ReflogFixture.cs" />
+    <Compile Include="StageFixture.cs" />
+    <Compile Include="StashFixture.cs" />
     <Compile Include="CloneFixture.cs" />
     <Compile Include="ConflictFixture.cs" />
+    <Compile Include="SubmoduleFixture.cs" />
     <Compile Include="IgnoreFixture.cs" />
     <Compile Include="FetchHeadFixture.cs" />
     <Compile Include="MergeFixture.cs" />
@@ -81,7 +90,7 @@
     <Compile Include="RepositoryOptionsFixture.cs" />
     <Compile Include="ResetHeadFixture.cs" />
     <Compile Include="LazyFixture.cs" />
-    <Compile Include="RemoteFixture.cs" />
+    <Compile Include="FetchFixture.cs" />
     <Compile Include="ResetIndexFixture.cs" />
     <Compile Include="StatusFixture.cs" />
     <Compile Include="TestHelpers\BaseFixture.cs" />
@@ -96,6 +105,7 @@
     <Compile Include="ReferenceFixture.cs" />
     <Compile Include="RepositoryFixture.cs" />
     <Compile Include="TagFixture.cs" />
+    <Compile Include="TestHelpers\OdbHelper.cs" />
     <Compile Include="TestHelpers\DirectoryHelper.cs" />
     <Compile Include="TestHelpers\ExpectedFetchState.cs" />
     <Compile Include="TestHelpers\TestRemoteInfo.cs" />
@@ -103,10 +113,10 @@
     <Compile Include="TestHelpers\SelfCleaningDirectory.cs" />
     <Compile Include="TestHelpers\SignatureExtensions.cs" />
     <Compile Include="TestHelpers\SkippableFactAttribute.cs" />
-    <Compile Include="TestHelpers\TemporaryCloneOfTestRepo.cs" />
     <Compile Include="TreeDefinitionFixture.cs" />
     <Compile Include="TreeFixture.cs" />
     <Compile Include="TupleFixture.cs" />
+    <Compile Include="UnstageFixture.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\LibGit2Sharp\LibGit2Sharp.csproj">
@@ -116,15 +126,18 @@
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
+    <NativeBinariesDirectory>$(MSBuildProjectDirectory)\..\Lib\NativeBinaries</NativeBinariesDirectory>
+  </PropertyGroup>
+  <Import Project="$(MSBuildProjectDirectory)\..\LibGit2Sharp\CopyNativeDependencies.targets" />
+  <PropertyGroup>
     <PreBuildEvent>
     </PreBuildEvent>
   </PropertyGroup>
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
   <Target Name="BeforeBuild">
   </Target>
   <Target Name="AfterBuild">
-    <CreateItem Include="$(MSBuildProjectDirectory)\..\Lib\NativeBinaries\**\*.*">
-      <Output TaskParameter="Include" ItemName="NativeBinaries" />
-    </CreateItem>
-    <Copy SourceFiles="@(NativeBinaries)" DestinationFiles="@(NativeBinaries->'$(OutputPath)NativeBinaries\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
+  -->
 </Project>

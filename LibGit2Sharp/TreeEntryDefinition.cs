@@ -5,36 +5,36 @@ using LibGit2Sharp.Core.Compat;
 namespace LibGit2Sharp
 {
     /// <summary>
-    ///   Holds the meta data of a <see cref = "TreeEntry" />.
+    /// Holds the meta data of a <see cref="TreeEntry"/>.
     /// </summary>
     public class TreeEntryDefinition : IEquatable<TreeEntryDefinition>
     {
         private Lazy<GitObject> target;
 
         private static readonly LambdaEqualityHelper<TreeEntryDefinition> equalityHelper =
-            new LambdaEqualityHelper<TreeEntryDefinition>(x => x.Mode, x => x.Type, x => x.TargetId);
+            new LambdaEqualityHelper<TreeEntryDefinition>(x => x.Mode, x => x.TargetType, x => x.TargetId);
 
-        internal static readonly Mode[] BlobModes = new[] { Mode.NonExecutableFile, Mode.ExecutableFile, Mode.NonExecutableGroupWritableFile, Mode.SymbolicLink };
+        internal static readonly Enum[] BlobModes = new Enum[] { Mode.NonExecutableFile, Mode.ExecutableFile, Mode.NonExecutableGroupWritableFile, Mode.SymbolicLink };
 
         /// <summary>
-        ///   Needed for mocking purposes.
+        /// Needed for mocking purposes.
         /// </summary>
         protected TreeEntryDefinition()
         {
         }
 
         /// <summary>
-        ///   Gets file mode.
+        /// Gets file mode.
         /// </summary>
         public virtual Mode Mode { get; private set; }
 
         /// <summary>
-        ///   Gets the <see cref = "GitObjectType" /> of the target being pointed at.
+        /// Gets the <see cref="TreeEntryTargetType"/> of the target being pointed at.
         /// </summary>
-        public virtual GitObjectType Type { get; private set; }
+        public virtual TreeEntryTargetType TargetType { get; private set; }
 
         /// <summary>
-        ///   Gets the <see cref = "ObjectId" /> of the target being pointed at.
+        /// Gets the <see cref="ObjectId"/> of the target being pointed at.
         /// </summary>
         public virtual ObjectId TargetId { get; private set; }
 
@@ -48,7 +48,7 @@ namespace LibGit2Sharp
             return new TreeEntryDefinition
                        {
                            Mode = treeEntry.Mode,
-                           Type = treeEntry.Type,
+                           TargetType = treeEntry.TargetType,
                            TargetId = treeEntry.TargetId,
                            target = new Lazy<GitObject>(() => treeEntry.Target)
                        };
@@ -59,7 +59,7 @@ namespace LibGit2Sharp
             return new TreeEntryDefinition
                        {
                            Mode = mode,
-                           Type = GitObjectType.Blob,
+                           TargetType = TreeEntryTargetType.Blob,
                            TargetId = blob.Id,
                            target = new Lazy<GitObject>(() => blob)
                        };
@@ -76,39 +76,50 @@ namespace LibGit2Sharp
                        };
         }
 
+        internal static TreeEntryDefinition From(ObjectId objectId)
+        {
+            return new TreeEntryDefinition
+                       {
+                           Mode = Mode.GitLink,
+                           TargetType = TreeEntryTargetType.GitLink,
+                           TargetId = objectId,
+                           target = new Lazy<GitObject>(() => { throw new InvalidOperationException("Shouldn't be necessary."); }),
+                       };
+        }
+
         internal static TreeEntryDefinition From(Tree tree)
         {
             return new TreeEntryDefinition
                        {
                            Mode = Mode.Directory,
-                           Type = GitObjectType.Tree,
+                           TargetType = TreeEntryTargetType.Tree,
                            TargetId = tree.Id,
                            target = new Lazy<GitObject>(() => tree)
                        };
         }
 
         /// <summary>
-        ///   Determines whether the specified <see cref = "Object" /> is equal to the current <see cref = "TreeEntryDefinition" />.
+        /// Determines whether the specified <see cref="Object"/> is equal to the current <see cref="TreeEntryDefinition"/>.
         /// </summary>
-        /// <param name = "obj">The <see cref = "Object" /> to compare with the current <see cref = "TreeEntryDefinition" />.</param>
-        /// <returns>True if the specified <see cref = "Object" /> is equal to the current <see cref = "TreeEntryDefinition" />; otherwise, false.</returns>
+        /// <param name="obj">The <see cref="Object"/> to compare with the current <see cref="TreeEntryDefinition"/>.</param>
+        /// <returns>True if the specified <see cref="Object"/> is equal to the current <see cref="TreeEntryDefinition"/>; otherwise, false.</returns>
         public override bool Equals(object obj)
         {
             return Equals(obj as TreeEntryDefinition);
         }
 
         /// <summary>
-        ///   Determines whether the specified <see cref = "TreeEntryDefinition" /> is equal to the current <see cref = "TreeEntryDefinition" />.
+        /// Determines whether the specified <see cref="TreeEntryDefinition"/> is equal to the current <see cref="TreeEntryDefinition"/>.
         /// </summary>
-        /// <param name = "other">The <see cref = "TreeEntryDefinition" /> to compare with the current <see cref = "TreeEntryDefinition" />.</param>
-        /// <returns>True if the specified <see cref = "TreeEntryDefinition" /> is equal to the current <see cref = "TreeEntryDefinition" />; otherwise, false.</returns>
+        /// <param name="other">The <see cref="TreeEntryDefinition"/> to compare with the current <see cref="TreeEntryDefinition"/>.</param>
+        /// <returns>True if the specified <see cref="TreeEntryDefinition"/> is equal to the current <see cref="TreeEntryDefinition"/>; otherwise, false.</returns>
         public bool Equals(TreeEntryDefinition other)
         {
             return equalityHelper.Equals(this, other);
         }
 
         /// <summary>
-        ///   Returns the hash code for this instance.
+        /// Returns the hash code for this instance.
         /// </summary>
         /// <returns>A 32-bit signed integer hash code.</returns>
         public override int GetHashCode()
@@ -117,10 +128,10 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   Tests if two <see cref = "TreeEntryDefinition" /> are equal.
+        /// Tests if two <see cref="TreeEntryDefinition"/> are equal.
         /// </summary>
-        /// <param name = "left">First <see cref = "TreeEntryDefinition" /> to compare.</param>
-        /// <param name = "right">Second <see cref = "TreeEntryDefinition" /> to compare.</param>
+        /// <param name="left">First <see cref="TreeEntryDefinition"/> to compare.</param>
+        /// <param name="right">Second <see cref="TreeEntryDefinition"/> to compare.</param>
         /// <returns>True if the two objects are equal; false otherwise.</returns>
         public static bool operator ==(TreeEntryDefinition left, TreeEntryDefinition right)
         {
@@ -128,10 +139,10 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   Tests if two <see cref = "TreeEntryDefinition" /> are different.
+        /// Tests if two <see cref="TreeEntryDefinition"/> are different.
         /// </summary>
-        /// <param name = "left">First <see cref = "TreeEntryDefinition" /> to compare.</param>
-        /// <param name = "right">Second <see cref = "TreeEntryDefinition" /> to compare.</param>
+        /// <param name="left">First <see cref="TreeEntryDefinition"/> to compare.</param>
+        /// <param name="right">Second <see cref="TreeEntryDefinition"/> to compare.</param>
         /// <returns>True if the two objects are different; false otherwise.</returns>
         public static bool operator !=(TreeEntryDefinition left, TreeEntryDefinition right)
         {
@@ -159,17 +170,17 @@ namespace LibGit2Sharp
             get { return Mode.Directory; }
         }
 
-        public override GitObjectType Type
+        public override TreeEntryTargetType TargetType
         {
-            get { return GitObjectType.Tree; }
+            get { return TreeEntryTargetType.Tree; }
         }
     }
 
     internal class TransientBlobTreeEntryDefinition : TransientTreeEntryDefinition
     {
-        public override GitObjectType Type
+        public override TreeEntryTargetType TargetType
         {
-            get { return GitObjectType.Blob; }
+            get { return TreeEntryTargetType.Blob; }
         }
 
         public Func<ObjectDatabase, Blob> Builder { get; set; }

@@ -6,12 +6,12 @@ using LibGit2Sharp.Core;
 namespace LibGit2Sharp
 {
     /// <summary>
-    ///   Base class for all custom managed backends for the libgit2 object database (ODB).
+    /// Base class for all custom managed backends for the libgit2 object database (ODB).
     /// </summary>
     public abstract class OdbBackend
     {
         /// <summary>
-        ///   Invoked by libgit2 when this backend is no longer needed.
+        /// Invoked by libgit2 when this backend is no longer needed.
         /// </summary>
         protected virtual void Dispose()
         {
@@ -24,7 +24,7 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   In your subclass, override this member to provide the list of actions your backend supports.
+        /// In your subclass, override this member to provide the list of actions your backend supports.
         /// </summary>
         protected abstract OdbBackendOperations SupportedOperations
         {
@@ -32,8 +32,8 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   Call this method from your implementations of Read and ReadPrefix to allocate a buffer in
-        ///   which to return the object's data.
+        /// Call this method from your implementations of Read and ReadPrefix to allocate a buffer in
+        /// which to return the object's data.
         /// </summary>
         /// <param name="bytes">Number of bytes to allocate</param>
         /// <returns>An Stream for you to write to and then return. Do not dispose this object before returning it.</returns>
@@ -51,63 +51,63 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   Requests that this backend read an object.
+        /// Requests that this backend read an object.
         /// </summary>
         public abstract int Read(byte[] oid,
             out Stream data,
-            out GitObjectType objectType);
+            out ObjectType objectType);
 
         /// <summary>
-        ///   Requests that this backend read an object. The object ID may not be complete (may be a prefix).
+        /// Requests that this backend read an object. The object ID may not be complete (may be a prefix).
         /// </summary>
         public abstract int ReadPrefix(byte[] shortOid,
             out byte[] oid,
             out Stream data,
-            out GitObjectType objectType);
+            out ObjectType objectType);
 
         /// <summary>
-        ///   Requests that this backend read an object's header (length and object type) but not its contents.
+        /// Requests that this backend read an object's header (length and object type) but not its contents.
         /// </summary>
         public abstract int ReadHeader(byte[] oid,
             out int length,
-            out GitObjectType objectType);
+            out ObjectType objectType);
 
         /// <summary>
-        ///   Requests that this backend write an object to the backing store. The backend may need to compute the object ID
-        ///   and return it to the caller.
+        /// Requests that this backend write an object to the backing store. The backend may need to compute the object ID
+        /// and return it to the caller.
         /// </summary>
         public abstract int Write(byte[] oid,
             Stream dataStream,
             long length,
-            GitObjectType objectType,
+            ObjectType objectType,
             out byte[] finalOid);
 
         /// <summary>
-        ///   Requests that this backend read an object. Returns a stream so that the caller can read the data in chunks.
+        /// Requests that this backend read an object. Returns a stream so that the caller can read the data in chunks.
         /// </summary>
         public abstract int ReadStream(byte[] oid,
             out OdbBackendStream stream);
 
         /// <summary>
-        ///   Requests that this backend write an object to the backing store. Returns a stream so that the caller can write
-        ///   the data in chunks.
+        /// Requests that this backend write an object to the backing store. Returns a stream so that the caller can write
+        /// the data in chunks.
         /// </summary>
         public abstract int WriteStream(long length,
-            GitObjectType objectType,
+            ObjectType objectType,
             out OdbBackendStream stream);
 
         /// <summary>
-        ///   Requests that this backend check if an object ID exists.
+        /// Requests that this backend check if an object ID exists.
         /// </summary>
         public abstract bool Exists(byte[] oid);
 
         /// <summary>
-        ///   Requests that this backend enumerate all items in the backing store.
+        /// Requests that this backend enumerate all items in the backing store.
         /// </summary>
         public abstract int ForEach(ForEachCallback callback);
 
         /// <summary>
-        ///   The signature of the callback method provided to the Foreach method.
+        /// The signature of the callback method provided to the Foreach method.
         /// </summary>
         /// <param name="oid">The object ID of the object in the backing store.</param>
         /// <returns>A non-negative result indicates the enumeration should continue. Otherwise, the enumeration should stop.</returns>
@@ -210,7 +210,7 @@ namespace LibGit2Sharp
                 if (odbBackend != null)
                 {
                     Stream dataStream = null;
-                    GitObjectType objectType;
+                    ObjectType objectType;
 
                     try
                     {
@@ -227,7 +227,7 @@ namespace LibGit2Sharp
                             }
 
                             len_p = new UIntPtr((ulong)memoryStream.Capacity);
-                            type_p = objectType;
+                            type_p = objectType.ToGitObjectType();
 
                             memoryStream.Seek(0, SeekOrigin.Begin);
                             buffer_p = new IntPtr(memoryStream.PositionPointer);
@@ -271,7 +271,7 @@ namespace LibGit2Sharp
                 {
                     byte[] oid;
                     Stream dataStream = null;
-                    GitObjectType objectType;
+                    ObjectType objectType;
 
                     try
                     {
@@ -294,7 +294,7 @@ namespace LibGit2Sharp
 
                             out_oid.Id = oid;
                             len_p = new UIntPtr((ulong)memoryStream.Capacity);
-                            type_p = objectType;
+                            type_p = objectType.ToGitObjectType();
 
                             memoryStream.Seek(0, SeekOrigin.Begin);
                             buffer_p = new IntPtr(memoryStream.PositionPointer);
@@ -332,7 +332,7 @@ namespace LibGit2Sharp
                 if (odbBackend != null)
                 {
                     int length;
-                    GitObjectType objectType;
+                    ObjectType objectType;
 
                     try
                     {
@@ -341,7 +341,7 @@ namespace LibGit2Sharp
                         if (0 == toReturn)
                         {
                             len_p = new UIntPtr((uint)length);
-                            type_p = objectType;
+                            type_p = objectType.ToGitObjectType();
                         }
 
                         return toReturn;
@@ -364,6 +364,8 @@ namespace LibGit2Sharp
             {
                 OdbBackend odbBackend = GCHandle.FromIntPtr(Marshal.ReadIntPtr(backend, GitOdbBackend.GCHandleOffset)).Target as OdbBackend;
 
+                ObjectType objectType = type.ToObjectType();
+
                 if (odbBackend != null &&
                     len.ToUInt64() < long.MaxValue)
                 {
@@ -373,7 +375,7 @@ namespace LibGit2Sharp
                         {
                             byte[] finalOid;
 
-                            int toReturn = odbBackend.Write(oid.Id, stream, (long)len.ToUInt64(), type, out finalOid);
+                            int toReturn = odbBackend.Write(oid.Id, stream, (long)len.ToUInt64(), objectType, out finalOid);
 
                             if (0 == toReturn)
                             {
@@ -402,6 +404,8 @@ namespace LibGit2Sharp
 
                 OdbBackend odbBackend = GCHandle.FromIntPtr(Marshal.ReadIntPtr(backend, GitOdbBackend.GCHandleOffset)).Target as OdbBackend;
 
+                ObjectType objectType = type.ToObjectType();
+
                 if (odbBackend != null &&
                     length.ToUInt64() < long.MaxValue)
                 {
@@ -409,7 +413,7 @@ namespace LibGit2Sharp
 
                     try
                     {
-                        int toReturn = odbBackend.WriteStream((long)length.ToUInt64(), type, out stream);
+                        int toReturn = odbBackend.WriteStream((long)length.ToUInt64(), objectType, out stream);
 
                         if (0 == toReturn)
                         {
@@ -547,48 +551,48 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   Flags used by subclasses of OdbBackend to indicate which operations they support.
+        /// Flags used by subclasses of OdbBackend to indicate which operations they support.
         /// </summary>
         [Flags]
         protected enum OdbBackendOperations
         {
             /// <summary>
-            ///   This OdbBackend declares that it supports the Read method.
+            /// This OdbBackend declares that it supports the Read method.
             /// </summary>
             Read = 1,
 
             /// <summary>
-            ///   This OdbBackend declares that it supports the ReadPrefix method.
+            /// This OdbBackend declares that it supports the ReadPrefix method.
             /// </summary>
             ReadPrefix = 2,
 
             /// <summary>
-            ///   This OdbBackend declares that it supports the ReadHeader method.
+            /// This OdbBackend declares that it supports the ReadHeader method.
             /// </summary>
             ReadHeader = 4,
 
             /// <summary>
-            ///   This OdbBackend declares that it supports the Write method.
+            /// This OdbBackend declares that it supports the Write method.
             /// </summary>
             Write = 8,
 
             /// <summary>
-            ///   This OdbBackend declares that it supports the ReadStream method.
+            /// This OdbBackend declares that it supports the ReadStream method.
             /// </summary>
             ReadStream = 16,
 
             /// <summary>
-            ///   This OdbBackend declares that it supports the WriteStream method.
+            /// This OdbBackend declares that it supports the WriteStream method.
             /// </summary>
             WriteStream = 32,
 
             /// <summary>
-            ///   This OdbBackend declares that it supports the Exists method.
+            /// This OdbBackend declares that it supports the Exists method.
             /// </summary>
             Exists = 64,
 
             /// <summary>
-            ///   This OdbBackend declares that it supports the Foreach method.
+            /// This OdbBackend declares that it supports the Foreach method.
             /// </summary>
             ForEach = 128,
         }

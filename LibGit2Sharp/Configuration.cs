@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using LibGit2Sharp.Core;
 using LibGit2Sharp.Core.Handles;
@@ -10,10 +9,9 @@ using LibGit2Sharp.Core.Handles;
 namespace LibGit2Sharp
 {
     /// <summary>
-    ///   Provides access to configuration variables for a repository.
+    /// Provides access to configuration variables for a repository.
     /// </summary>
     public class Configuration : IDisposable,
-        IEnumerable<ConfigurationEntry>,
         IEnumerable<ConfigurationEntry<string>>
     {
         private readonly FilePath globalConfigPath;
@@ -25,7 +23,7 @@ namespace LibGit2Sharp
         private ConfigurationSafeHandle configHandle;
 
         /// <summary>
-        ///   Needed for mocking purposes.
+        /// Needed for mocking purposes.
         /// </summary>
         protected Configuration()
         { }
@@ -75,7 +73,7 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   Access configuration values without a repository. Generally you want to access configuration via an instance of <see cref = "Repository" /> instead.
+        /// Access configuration values without a repository. Generally you want to access configuration via an instance of <see cref="Repository"/> instead.
         /// </summary>
         /// <param name="globalConfigurationFileLocation">Path to a Global configuration file. If null, the default path for a global configuration file will be probed.</param>
         /// <param name="xdgConfigurationFileLocation">Path to a XDG configuration file. If null, the default path for a XDG configuration file will be probed.</param>
@@ -86,25 +84,7 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   Determines if a Git configuration file specific to the current interactive user has been found.
-        /// </summary>
-        [Obsolete("This property will be removed in the next release. Please use HasConfig() instead.")]
-        public virtual bool HasGlobalConfig
-        {
-            get { return HasConfig(ConfigurationLevel.Global); }
-        }
-
-        /// <summary>
-        ///   Determines if a system-wide Git configuration file has been found.
-        /// </summary>
-        [Obsolete("This property will be removed in the next release. Please use HasConfig() instead.")]
-        public virtual bool HasSystemConfig
-        {
-            get { return HasConfig(ConfigurationLevel.System); }
-        }
-
-        /// <summary>
-        ///   Determines which configuration file has been found.
+        /// Determines which configuration file has been found.
         /// </summary>
         public virtual bool HasConfig(ConfigurationLevel level)
         {
@@ -117,8 +97,8 @@ namespace LibGit2Sharp
         #region IDisposable Members
 
         /// <summary>
-        ///   Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
-        ///   Saves any open configuration files.
+        /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
+        /// Saves any open configuration files.
         /// </summary>
         public void Dispose()
         {
@@ -129,10 +109,10 @@ namespace LibGit2Sharp
         #endregion
 
         /// <summary>
-        ///   Unset a configuration variable (key and value).
+        /// Unset a configuration variable (key and value).
         /// </summary>
-        /// <param name = "key">The key to unset.</param>
-        /// <param name = "level">The configuration file which should be considered as the target of this operation</param>
+        /// <param name="key">The key to unset.</param>
+        /// <param name="level">The configuration file which should be considered as the target of this operation</param>
         public virtual void Unset(string key, ConfigurationLevel level = ConfigurationLevel.Local)
         {
             Ensure.ArgumentNotNullOrEmptyString(key, "key");
@@ -144,7 +124,7 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
+        /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
         /// </summary>
         protected virtual void Dispose(bool disposing)
         {
@@ -152,33 +132,33 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   Get a configuration value for a key. Keys are in the form 'section.name'.
-        ///   <para>
-        ///      The same escalation logic than in git.git will be used when looking for the key in the config files:
-        ///         - local: the Git file in the current repository
-        ///         - global: the Git file specific to the current interactive user (usually in `$HOME/.gitconfig`)
-        ///         - xdg: another Git file specific to the current interactive user (usually in `$HOME/.config/git/config`)
-        ///         - system: the system-wide Git file
+        /// Get a configuration value for a key. Keys are in the form 'section.name'.
+        /// <para>
+        ///    The same escalation logic than in git.git will be used when looking for the key in the config files:
+        ///       - local: the Git file in the current repository
+        ///       - global: the Git file specific to the current interactive user (usually in `$HOME/.gitconfig`)
+        ///       - xdg: another Git file specific to the current interactive user (usually in `$HOME/.config/git/config`)
+        ///       - system: the system-wide Git file
         ///
-        ///     The first occurence of the key will be returned.
-        ///   </para>
-        ///   <para>
-        ///     For example in  order to get the value for this in a .git\config file:
+        ///   The first occurence of the key will be returned.
+        /// </para>
+        /// <para>
+        ///   For example in  order to get the value for this in a .git\config file:
         ///
-        ///     <code>
-        ///     [core]
-        ///     bare = true
-        ///     </code>
+        ///   <code>
+        ///   [core]
+        ///   bare = true
+        ///   </code>
         ///
-        ///     You would call:
+        ///   You would call:
         ///
-        ///     <code>
-        ///     bool isBare = repo.Config.Get&lt;bool&gt;("core.bare").Value;
-        ///     </code>
-        ///   </para>
+        ///   <code>
+        ///   bool isBare = repo.Config.Get&lt;bool&gt;("core.bare").Value;
+        ///   </code>
+        /// </para>
         /// </summary>
-        /// <typeparam name = "T">The configuration value type</typeparam>
-        /// <param name = "key">The key</param>
+        /// <typeparam name="T">The configuration value type</typeparam>
+        /// <param name="key">The key</param>
         /// <returns>The <see cref="ConfigurationEntry{T}"/>, or null if not set</returns>
         public virtual ConfigurationEntry<T> Get<T>(string key)
         {
@@ -188,25 +168,25 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   Get a configuration value for a key. Keys are in the form 'section.name'.
-        ///   <para>
-        ///     For example in  order to get the value for this in a .git\config file:
+        /// Get a configuration value for a key. Keys are in the form 'section.name'.
+        /// <para>
+        ///   For example in  order to get the value for this in a .git\config file:
         ///
-        ///     <code>
-        ///     [core]
-        ///     bare = true
-        ///     </code>
+        ///   <code>
+        ///   [core]
+        ///   bare = true
+        ///   </code>
         ///
-        ///     You would call:
+        ///   You would call:
         ///
-        ///     <code>
-        ///     bool isBare = repo.Config.Get&lt;bool&gt;("core.bare").Value;
-        ///     </code>
-        ///   </para>
+        ///   <code>
+        ///   bool isBare = repo.Config.Get&lt;bool&gt;("core.bare").Value;
+        ///   </code>
+        /// </para>
         /// </summary>
-        /// <typeparam name = "T">The configuration value type</typeparam>
-        /// <param name = "key">The key</param>
-        /// <param name = "level">The configuration file into which the key should be searched for</param>
+        /// <typeparam name="T">The configuration value type</typeparam>
+        /// <param name="key">The key</param>
+        /// <param name="level">The configuration file into which the key should be searched for</param>
         /// <returns>The <see cref="ConfigurationEntry{T}"/>, or null if not set</returns>
         public virtual ConfigurationEntry<T> Get<T>(string key, ConfigurationLevel level)
         {
@@ -224,22 +204,22 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   Set a configuration value for a key. Keys are in the form 'section.name'.
-        ///   <para>
-        ///     For example in order to set the value for this in a .git\config file:
+        /// Set a configuration value for a key. Keys are in the form 'section.name'.
+        /// <para>
+        ///   For example in order to set the value for this in a .git\config file:
         ///
-        ///     [test]
-        ///     boolsetting = true
+        ///   [test]
+        ///   boolsetting = true
         ///
-        ///     You would call:
+        ///   You would call:
         ///
-        ///     repo.Config.Set("test.boolsetting", true);
-        ///   </para>
+        ///   repo.Config.Set("test.boolsetting", true);
+        /// </para>
         /// </summary>
-        /// <typeparam name = "T">The configuration value type</typeparam>
-        /// <param name = "key">The key parts</param>
-        /// <param name = "value">The value</param>
-        /// <param name = "level">The configuration file which should be considered as the target of this operation</param>
+        /// <typeparam name="T">The configuration value type</typeparam>
+        /// <param name="key">The key parts</param>
+        /// <param name="value">The value</param>
+        /// <param name="level">The configuration file which should be considered as the target of this operation</param>
         public virtual void Set<T>(string key, T value, ConfigurationLevel level = ConfigurationLevel.Local)
         {
             Ensure.ArgumentNotNullOrEmptyString(key, "key");
@@ -288,12 +268,6 @@ namespace LibGit2Sharp
 
         IEnumerator<ConfigurationEntry<string>> IEnumerable<ConfigurationEntry<String>>.GetEnumerator()
         {
-            return BuildConfigEntries().Cast<ConfigurationEntry<string>>().GetEnumerator();
-        }
-
-        [Obsolete("This method will be removed in the next release. Please use a different overload instead.")]
-        IEnumerator<ConfigurationEntry> IEnumerable<ConfigurationEntry>.GetEnumerator()
-        {
             return BuildConfigEntries().GetEnumerator();
         }
 
@@ -302,16 +276,32 @@ namespace LibGit2Sharp
             return ((IEnumerable<ConfigurationEntry<string>>)this).GetEnumerator();
         }
 
-        private ICollection<ConfigurationEntry> BuildConfigEntries()
+        private IEnumerable<ConfigurationEntry<string>> BuildConfigEntries()
         {
             return Proxy.git_config_foreach(configHandle, entryPtr =>
             {
                 var entry = (GitConfigEntry)Marshal.PtrToStructure(entryPtr, typeof(GitConfigEntry));
 
-                return new ConfigurationEntry(Utf8Marshaler.FromNative(entry.namePtr),
-                                              Utf8Marshaler.FromNative(entry.valuePtr),
-                                              (ConfigurationLevel)entry.level);
+                return new ConfigurationEntry<string>(Utf8Marshaler.FromNative(entry.namePtr),
+                                                      Utf8Marshaler.FromNative(entry.valuePtr),
+                                                      (ConfigurationLevel)entry.level);
             });
+        }
+
+        internal Signature BuildSignatureFromGlobalConfiguration(DateTimeOffset now, bool shouldThrowIfNotFound)
+        {
+            var name = Get<string>("user.name");
+            var email = Get<string>("user.email");
+
+            if (shouldThrowIfNotFound && ((name == null) || (email == null)))
+            {
+                throw new LibGit2SharpException("Can not find Name or Email setting of the current user in Git configuration.");
+            }
+
+            return new Signature(
+                name != null ? name.Value : "unknown",
+                email != null ? email.Value : string.Format("{0}@{1}", Environment.UserName, Environment.UserDomainName),
+                now);
         }
     }
 }

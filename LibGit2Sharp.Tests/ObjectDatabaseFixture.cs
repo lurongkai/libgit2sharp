@@ -27,9 +27,8 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanCreateABlobFromAFileInTheWorkingDirectory()
         {
-            TemporaryCloneOfTestRepo scd = BuildTemporaryCloneOfTestRepo(StandardTestRepoWorkingDirPath);
-
-            using (var repo = new Repository(scd.DirectoryPath))
+            string path = CloneStandardTestRepo();
+            using (var repo = new Repository(path))
             {
                 Assert.Equal(FileStatus.Nonexistent, repo.Index.RetrieveStatus("hello.txt"));
 
@@ -51,15 +50,13 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanCreateABlobIntoTheDatabaseOfABareRepository()
         {
-            TemporaryCloneOfTestRepo scd = BuildTemporaryCloneOfTestRepo();
+            string path = CloneBareTestRepo();
 
             SelfCleaningDirectory directory = BuildSelfCleaningDirectory();
 
-            Directory.CreateDirectory(directory.RootedDirectoryPath);
-            string filepath = Path.Combine(directory.RootedDirectoryPath, "hello.txt");
-            File.WriteAllText(filepath, "I'm a new file\n");
+            string filepath = Touch(directory.RootedDirectoryPath, "hello.txt", "I'm a new file\n");
 
-            using (var repo = new Repository(scd.RepositoryPath))
+            using (var repo = new Repository(path))
             {
                 /*
                  * $ echo "I'm a new file" | git hash-object --stdin
@@ -83,9 +80,9 @@ namespace LibGit2Sharp.Tests
         [InlineData("321cbdf08803c744082332332838df6bd160f8f9", "dummy.data")]
         [InlineData("e9671e138a780833cb689753570fd10a55be84fb", "dummy.txt")]
         [InlineData("e9671e138a780833cb689753570fd10a55be84fb", "dummy.guess")]
-        public void CanCreateABlobFromABinaryReader(string expectedSha, string hintPath)
+        public void CanCreateABlobFromAStream(string expectedSha, string hintPath)
         {
-            TemporaryCloneOfTestRepo scd = BuildTemporaryCloneOfTestRepo();
+            string path = CloneBareTestRepo();
 
             var sb = new StringBuilder();
             for (int i = 0; i < 6; i++)
@@ -93,16 +90,56 @@ namespace LibGit2Sharp.Tests
                 sb.Append("libgit2\n\r\n");
             }
 
-            using (var repo = new Repository(scd.RepositoryPath))
+            using (var repo = new Repository(path))
             {
                 CreateAttributesFiles(Path.Combine(repo.Info.Path, "info"), "attributes");
 
                 using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(sb.ToString())))
-                using (var binReader = new BinaryReader(stream))
                 {
-                    Blob blob = repo.ObjectDatabase.CreateBlob(binReader, hintPath);
+                    Blob blob = repo.ObjectDatabase.CreateBlob(stream, hintPath);
                     Assert.Equal(expectedSha, blob.Sha);
                 }
+            }
+        }
+
+        [Theory]
+        [InlineData(16, 32)]
+        [InlineData(34, 8)]
+        [InlineData(7584, 5879)]
+        [InlineData(7854, 1247)]
+        [InlineData(7854, 9785)]
+        [InlineData(8192, 4096)]
+        [InlineData(8192, 4095)]
+        [InlineData(8192, 4097)]
+        public void CanCreateABlobFromAStreamWithANumberOfBytesToConsume(int contentSize, int numberOfBytesToConsume)
+        {
+            string path = CloneBareTestRepo();
+
+            var sb = new StringBuilder();
+            for (int i = 0; i < contentSize; i++)
+            {
+                sb.Append(i % 10);
+            }
+
+            using (var repo = new Repository(path))
+            {
+                using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(sb.ToString())))
+                {
+                    Blob blob = repo.ObjectDatabase.CreateBlob(stream, numberOfBytesToConsume: numberOfBytesToConsume);
+                    Assert.Equal(Math.Min(numberOfBytesToConsume, contentSize), blob.Size);
+                }
+            }
+        }
+
+        [Fact]
+        public void CreatingABlobFromANonReadableStreamThrows()
+        {
+            string path = CloneStandardTestRepo();
+
+            using (var stream = new FileStream(Path.Combine(path, "file.txt"), FileMode.CreateNew, FileAccess.Write))
+            using (var repo = new Repository(path))
+            {
+                Assert.Throws<ArgumentException>(() => repo.ObjectDatabase.CreateBlob(stream));
             }
         }
 
@@ -110,8 +147,7 @@ namespace LibGit2Sharp.Tests
         {
             const string attributes = "* text=auto\n*.txt text\n*.data binary\n";
 
-            Directory.CreateDirectory(where);
-            File.WriteAllText(Path.Combine(where, filename), attributes);
+            Touch(where, filename, attributes);
         }
 
         [Theory]
@@ -122,9 +158,8 @@ namespace LibGit2Sharp.Tests
         [InlineData("1")]
         public void CanCreateATreeByAlteringAnExistingOne(string targetPath)
         {
-            TemporaryCloneOfTestRepo scd = BuildTemporaryCloneOfTestRepo();
-
-            using (var repo = new Repository(scd.RepositoryPath))
+            string path = CloneBareTestRepo();
+            using (var repo = new Repository(path))
             {
                 var blob = repo.Lookup<Blob>(new ObjectId("a8233120f6ad708f843d861ce2b7228ec4e3dec6"));
 
@@ -139,9 +174,8 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanCreateATreeByRemovingEntriesFromExistingOne()
         {
-            TemporaryCloneOfTestRepo scd = BuildTemporaryCloneOfTestRepo();
-
-            using (var repo = new Repository(scd.RepositoryPath))
+            string path = CloneBareTestRepo();
+            using (var repo = new Repository(path))
             {
                 TreeDefinition td = TreeDefinition.From(repo.Head.Tip.Tree)
                     .Remove("branch_file.txt")
@@ -161,9 +195,8 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void RemovingANonExistingEntryFromATreeDefinitionHasNoSideEffect()
         {
-            TemporaryCloneOfTestRepo scd = BuildTemporaryCloneOfTestRepo();
-
-            using (var repo = new Repository(scd.RepositoryPath))
+            string path = CloneBareTestRepo();
+            using (var repo = new Repository(path))
             {
                 Tree head = repo.Head.Tip.Tree;
 
@@ -184,9 +217,8 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanCreateAnEmptyTree()
         {
-            TemporaryCloneOfTestRepo scd = BuildTemporaryCloneOfTestRepo();
-
-            using (var repo = new Repository(scd.RepositoryPath))
+            string path = CloneBareTestRepo();
+            using (var repo = new Repository(path))
             {
                 var td = new TreeDefinition();
 
@@ -199,12 +231,11 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanReplaceAnExistingTreeWithAnotherPersitedTree()
         {
-            TemporaryCloneOfTestRepo scd = BuildTemporaryCloneOfTestRepo();
-
-            using (var repo = new Repository(scd.RepositoryPath))
+            string path = CloneBareTestRepo();
+            using (var repo = new Repository(path))
             {
                 TreeDefinition td = TreeDefinition.From(repo.Head.Tip.Tree);
-                Assert.Equal(GitObjectType.Tree, td["1"].Type);
+                Assert.Equal(TreeEntryTargetType.Tree, td["1"].TargetType);
 
                 TreeDefinition newTd = new TreeDefinition()
                     .Add("new/one", repo.Lookup<Blob>("a823312"), Mode.NonExecutableFile)
@@ -214,16 +245,15 @@ namespace LibGit2Sharp.Tests
                 repo.ObjectDatabase.CreateTree(newTd);
 
                 td.Add("1", newTd["new"]);
-                Assert.Equal(GitObjectType.Tree, td["1/tree"].Type);
+                Assert.Equal(TreeEntryTargetType.Tree, td["1/tree"].TargetType);
             }
         }
 
         [Fact]
         public void CanCreateATreeContainingABlobFromAFileInTheWorkingDirectory()
         {
-            TemporaryCloneOfTestRepo scd = BuildTemporaryCloneOfTestRepo(StandardTestRepoWorkingDirPath);
-
-            using (var repo = new Repository(scd.DirectoryPath))
+            string path = CloneStandardTestRepo();
+            using (var repo = new Repository(path))
             {
                 Assert.Equal(FileStatus.Nonexistent, repo.Index.RetrieveStatus("hello.txt"));
                 File.AppendAllText(Path.Combine(repo.Info.WorkingDirectory, "hello.txt"), "I'm a new file\n");
@@ -252,6 +282,48 @@ namespace LibGit2Sharp.Tests
         }
 
         [Fact]
+        public void CanCreateATreeContainingAGitLinkFromAnUntrackedSubmoduleInTheWorkingDirectory()
+        {
+            string path = CloneSubmoduleTestRepo();
+            using (var repo = new Repository(path))
+            {
+                const string submodulePath = "sm_added_and_uncommited";
+
+                var submoduleBefore = repo.Submodules[submodulePath];
+                Assert.NotNull(submoduleBefore);
+                Assert.Null(submoduleBefore.HeadCommitId);
+
+                var objectId = (ObjectId)"480095882d281ed676fe5b863569520e54a7d5c0";
+
+                TreeDefinition td = TreeDefinition.From(repo.Head.Tip.Tree)
+                                                  .AddGitLink(submodulePath, objectId);
+
+                TreeEntryDefinition ted = td[submodulePath];
+                Assert.NotNull(ted);
+                Assert.Equal(Mode.GitLink, ted.Mode);
+                Assert.Equal(objectId, ted.TargetId);
+                Assert.Equal(TreeEntryTargetType.GitLink, ted.TargetType);
+
+                Tree tree = repo.ObjectDatabase.CreateTree(td);
+
+                TreeEntry te = tree[submodulePath];
+                Assert.NotNull(te.Target);
+                Assert.IsType<GitLink>(te.Target);
+                Assert.Equal(objectId, te.Target.Id);
+
+                var commitWithSubmodule = repo.ObjectDatabase.CreateCommit("Submodule!", Constants.Signature, Constants.Signature, tree,
+                                                                           new[] { repo.Head.Tip });
+                repo.Reset(ResetOptions.Soft, commitWithSubmodule);
+
+                var submodule = repo.Submodules[submodulePath];
+                Assert.NotNull(submodule);
+                Assert.Equal(submodulePath, submodule.Name);
+                Assert.Equal(submodulePath, submodule.Path);
+                Assert.Equal(objectId, submodule.HeadCommitId);
+            }
+        }
+
+        [Fact]
         public void CannotCreateATreeContainingABlobFromARelativePathAgainstABareRepository()
         {
             using (var repo = new Repository(BareTestRepoPath))
@@ -266,9 +338,8 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanCreateACommit()
         {
-            TemporaryCloneOfTestRepo scd = BuildTemporaryCloneOfTestRepo();
-
-            using (var repo = new Repository(scd.RepositoryPath))
+            string path = CloneBareTestRepo();
+            using (var repo = new Repository(path))
             {
                 Branch head = repo.Head;
 
@@ -277,7 +348,7 @@ namespace LibGit2Sharp.Tests
 
                 Tree tree = repo.ObjectDatabase.CreateTree(td);
 
-                Commit commit = repo.ObjectDatabase.CreateCommit("Ü message", DummySignature, DummySignature, tree, new[] { repo.Head.Tip });
+                Commit commit = repo.ObjectDatabase.CreateCommit("Ü message", Constants.Signature, Constants.Signature, tree, new[] { repo.Head.Tip });
 
                 Branch newHead = repo.Head;
 
@@ -288,21 +359,45 @@ namespace LibGit2Sharp.Tests
         }
 
         [Fact]
-        public void CanCreateABinaryBlobFromABinaryReader()
+        public void CanCreateABinaryBlobFromAStream()
         {
-            TemporaryCloneOfTestRepo scd = BuildTemporaryCloneOfTestRepo();
-
             var binaryContent = new byte[] { 0, 1, 2, 3, 4, 5 };
 
-            using (var repo = new Repository(scd.RepositoryPath))
+            string path = CloneBareTestRepo();
+            using (var repo = new Repository(path))
             {
                 using (var stream = new MemoryStream(binaryContent))
-                using (var binReader = new BinaryReader(stream))
                 {
-                    Blob blob = repo.ObjectDatabase.CreateBlob(binReader);
+                    Blob blob = repo.ObjectDatabase.CreateBlob(stream);
                     Assert.Equal(6, blob.Size);
                     Assert.Equal(true, blob.IsBinary);
                 }
+            }
+        }
+
+        [Fact]
+        public void CanCreateATagAnnotationPointingToAGitObject()
+        {
+            string path = CloneBareTestRepo();
+            using (var repo = new Repository(path))
+            {
+                var blob = repo.Head.Tip["README"].Target as Blob;
+                Assert.NotNull(blob);
+
+                TagAnnotation tag = repo.ObjectDatabase.CreateTagAnnotation(
+                    "nice_blob",
+                    blob,
+                    Constants.Signature,
+                    "I can point at blobs, too!");
+
+                Assert.NotNull(tag);
+
+                // The TagAnnotation is not pointed at by any reference...
+                Assert.Null(repo.Tags["nice_blob"]);
+
+                // ...but exists in the odb.
+                var fetched = repo.Lookup<TagAnnotation>(tag.Id);
+                Assert.Equal(tag, fetched);
             }
         }
     }

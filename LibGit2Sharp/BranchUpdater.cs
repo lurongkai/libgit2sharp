@@ -1,12 +1,11 @@
 using System;
-using LibGit2Sharp.Core;
 using System.Globalization;
-using LibGit2Sharp.Core.Handles;
+using LibGit2Sharp.Core;
 
 namespace LibGit2Sharp
 {
     /// <summary>
-    ///   Exposes properties of a branch that can be updated.
+    /// Exposes properties of a branch that can be updated.
     /// </summary>
     public class BranchUpdater
     {
@@ -14,7 +13,7 @@ namespace LibGit2Sharp
         private readonly Branch branch;
 
         /// <summary>
-        ///   Needed for mocking purposes.
+        /// Needed for mocking purposes.
         /// </summary>
         protected BranchUpdater()
         { }
@@ -29,12 +28,19 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   Sets the upstream information for the branch.
-        ///   <para>
-        ///     Passing null or string.Empty will unset the upstream.
-        ///   </para>
+        /// Sets the upstream information for the branch.
+        /// <para>
+        ///   Passing null or string.Empty will unset the upstream.
+        /// </para>
+        /// <para>
+        ///   The upstream branch name is with respect to the current repository.
+        ///   So, passing "refs/remotes/origin/master" will set the current branch
+        ///   to track "refs/heads/master" on the origin. Passing in
+        ///   "refs/heads/master" will result in the branch tracking the local
+        ///   master branch.
+        /// </para>
         /// </summary>
-        public virtual string Upstream
+        public virtual string TrackedBranch
         {
             set
             {
@@ -48,17 +54,56 @@ namespace LibGit2Sharp
             }
         }
 
-        private void UnsetUpstream()
+        /// <summary>
+        /// Set the upstream branch for this branch.
+        /// <para>
+        ///   To track the "master" branch on the "origin" remote, set the
+        ///   <see cref="Remote"/> property to "origin" and the <see cref="UpstreamBranch"/>
+        ///   property to "refs/heads/master".
+        /// </para>
+        /// </summary>
+        public virtual string UpstreamBranch
         {
-            repo.Config.Unset(string.Format("branch.{0}.remote", branch.Name));
-            repo.Config.Unset(string.Format("branch.{0}.merge", branch.Name));
+            set
+            {
+                SetUpstreamBranch(value);
+            }
         }
 
         /// <summary>
-        ///   Set the upstream information for the current branch.
+        /// Set the upstream remote for this branch.
+        /// <para>
+        ///   To track the "master" branch on the "origin" remote, set the
+        ///   <see cref="Remote"/> property to "origin" and the <see cref="UpstreamBranch"/>
+        ///   property to "refs/heads/master".
+        /// </para>
         /// </summary>
-        /// <param name="upStreamBranchName">The upstream branch to track.</param>
-        private void SetUpstream(string upStreamBranchName)
+        public virtual string Remote
+        {
+            set
+            {
+                SetUpstreamRemote(value);
+            }
+        }
+
+        private void UnsetUpstream()
+        {
+            SetUpstreamRemote(string.Empty);
+            SetUpstreamBranch(string.Empty);
+        }
+
+        /// <summary>
+        /// Set the upstream information for the current branch.
+        /// <para>
+        /// The upstream branch name is with respect to the current repository.
+        /// So, passing "refs/remotes/origin/master" will set the current branch
+        /// to track "refs/heads/master" on the origin. Passing in
+        /// "refs/heads/master" will result in the branch tracking the local
+        /// master branch.
+        /// </para>
+        /// </summary>
+        /// <param name="upstreamBranchName">The remote branch to track (e.g. refs/remotes/origin/master).</param>
+        private void SetUpstream(string upstreamBranchName)
         {
             if (branch.IsRemote)
             {
@@ -68,26 +113,57 @@ namespace LibGit2Sharp
             string remoteName;
             string branchName;
 
-            GetUpstreamInformation(upStreamBranchName, out remoteName, out branchName);
+            GetUpstreamInformation(upstreamBranchName, out remoteName, out branchName);
 
-            SetUpstreamTo(remoteName, branchName);
-        }
-
-        private void SetUpstreamTo(string remoteName, string branchName)
-        {
-            if (!remoteName.Equals(".", StringComparison.Ordinal))
-            {
-                // Verify that remote exists.
-                repo.Network.Remotes.RemoteForName(remoteName);
-            }
-
-            repo.Config.Set(string.Format("branch.{0}.remote", branch.Name), remoteName);
-            repo.Config.Set(string.Format("branch.{0}.merge", branch.Name), branchName);
+            SetUpstreamRemote(remoteName);
+            SetUpstreamBranch(branchName);
         }
 
         /// <summary>
-        ///   Get the upstream remote and merge branch name from a Canonical branch name.
-        ///   This will return the remote name (or ".") if a local branch for the remote name.
+        /// Set the upstream merge branch for the local branch.
+        /// </summary>
+        /// <param name="mergeBranchName">The merge branch in the upstream remote's namespace.</param>
+        private void SetUpstreamBranch(string mergeBranchName)
+        {
+            string configKey = string.Format("branch.{0}.merge", branch.Name);
+
+            if (string.IsNullOrEmpty(mergeBranchName))
+            {
+                repo.Config.Unset(configKey);
+            }
+            else
+            {
+                repo.Config.Set(configKey, mergeBranchName);
+            }
+        }
+
+        /// <summary>
+        /// Set the upstream remote for the local branch.
+        /// </summary>
+        /// <param name="remoteName">The name of the remote to set as the upstream branch.</param>
+        private void SetUpstreamRemote(string remoteName)
+        {
+            string configKey = string.Format("branch.{0}.remote", branch.Name);
+
+            if (string.IsNullOrEmpty(remoteName))
+            {
+                repo.Config.Unset(configKey);
+            }
+            else
+            {
+                if (!remoteName.Equals(".", StringComparison.Ordinal))
+                {
+                    // Verify that remote exists.
+                    repo.Network.Remotes.RemoteForName(remoteName);
+                }
+
+                repo.Config.Set(configKey, remoteName);
+            }
+        }
+
+        /// <summary>
+        /// Get the upstream remote and merge branch name from a Canonical branch name.
+        /// This will return the remote name (or ".") if a local branch for the remote name.
         /// </summary>
         /// <param name="canonicalName">The canonical branch name to parse.</param>
         /// <param name="remoteName">The name of the corresponding remote the branch belongs to
@@ -98,27 +174,17 @@ namespace LibGit2Sharp
             remoteName = null;
             mergeBranchName = null;
 
-            const string localPrefix = "refs/heads/";
-            const string remotePrefix = "refs/remotes/";
-
-            if (canonicalName.StartsWith(localPrefix, StringComparison.Ordinal))
+            if (canonicalName.LooksLikeLocalBranch())
             {
                 remoteName = ".";
                 mergeBranchName = canonicalName;
             }
-            else if (canonicalName.StartsWith(remotePrefix, StringComparison.Ordinal))
+            else if (canonicalName.LooksLikeRemoteTrackingBranch())
             {
-                using (ReferenceSafeHandle branchPtr = repo.Refs.RetrieveReferencePtr(canonicalName))
-                {
-                    remoteName = Proxy.git_branch_remote_name(repo.Handle, branchPtr);
-                }
+                remoteName = Proxy.git_branch_remote_name(repo.Handle, canonicalName);
 
                 Remote remote = repo.Network.Remotes.RemoteForName(remoteName);
-                using (RemoteSafeHandle remoteHandle = Proxy.git_remote_load(repo.Handle, remote.Name, true))
-                {
-                    GitFetchSpecHandle fetchSpecPtr = Proxy.git_remote_fetchspec(remoteHandle);
-                    mergeBranchName = Proxy.git_fetchspec_rtransform(fetchSpecPtr, canonicalName);
-                }
+                mergeBranchName = remote.FetchSpecTransformToSource(canonicalName);
             }
             else
             {

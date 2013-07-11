@@ -14,9 +14,9 @@ namespace LibGit2Sharp.Tests
         [InlineData(false)]
         public void ResetANewlyInitializedRepositoryThrows(bool isBare)
         {
-            SelfCleaningDirectory scd = BuildSelfCleaningDirectory();
+            string repoPath = InitNewRepository(isBare);
 
-            using (var repo = Repository.Init(scd.DirectoryPath, isBare))
+            using (var repo = new Repository(repoPath))
             {
                 Assert.Throws<LibGit2SharpException>(() => repo.Reset(ResetOptions.Soft));
             }
@@ -25,7 +25,8 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void SoftResetToTheHeadOfARepositoryDoesNotChangeTheTargetOfTheHead()
         {
-            using (var repo = new Repository(BareTestRepoPath))
+            string path = CloneBareTestRepo();
+            using (var repo = new Repository(path))
             {
                 Branch oldHead = repo.Head;
 
@@ -38,9 +39,8 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void SoftResetToAParentCommitChangesTheTargetOfTheHead()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo();
-
-            using (var repo = new Repository(path.RepositoryPath))
+            string path = CloneBareTestRepo();
+            using (var repo = new Repository(path))
             {
                 var headCommit = repo.Head.Tip;
                 var firstCommitParent = headCommit.Parents.First();
@@ -53,9 +53,8 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void SoftResetSetsTheHeadToTheDereferencedCommitOfAChainedTag()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo();
-
-            using (var repo = new Repository(path.RepositoryPath))
+            string path = CloneBareTestRepo();
+            using (var repo = new Repository(path))
             {
                 Tag tag = repo.Tags["test"];
                 repo.Reset(ResetOptions.Soft, tag.CanonicalName);
@@ -92,9 +91,9 @@ namespace LibGit2Sharp.Tests
 
         private void AssertSoftReset(Func<Branch, string> branchIdentifierRetriever, bool shouldHeadBeDetached, Func<Branch, string> expectedHeadNameRetriever)
         {
-            SelfCleaningDirectory scd = BuildSelfCleaningDirectory();
+            string repoPath = InitNewRepository();
 
-            using (var repo = Repository.Init(scd.DirectoryPath)) 
+            using (var repo = new Repository(repoPath))
             {
                 FeedTheRepository(repo);
 
@@ -103,6 +102,7 @@ namespace LibGit2Sharp.Tests
 
                 string branchIdentifier = branchIdentifierRetriever(branch);
                 repo.Checkout(branchIdentifier);
+                var oldHeadSha = repo.Head.Tip.Sha;
                 Assert.Equal(shouldHeadBeDetached, repo.Info.IsHeadDetached);
 
                 string expectedHeadName = expectedHeadNameRetriever(branch);
@@ -116,19 +116,22 @@ namespace LibGit2Sharp.Tests
 
                 Assert.Equal(FileStatus.Staged, repo.Index.RetrieveStatus("a.txt"));
 
+                AssertReflogEntryIsCreated(repo.Refs.Log(repo.Refs.Head), tag.Target.Sha, string.Format("reset: moving to {0}", tag.Target.Sha), oldHeadSha);
+
                 /* Reset --soft the Head to a commit through its sha */
                 repo.Reset(ResetOptions.Soft, branch.Tip.Sha);
                 Assert.Equal(expectedHeadName, repo.Head.Name);
                 Assert.Equal(branch.Tip.Sha, repo.Head.Tip.Sha);
 
                 Assert.Equal(FileStatus.Unaltered, repo.Index.RetrieveStatus("a.txt"));
+
+                AssertReflogEntryIsCreated(repo.Refs.Log(repo.Refs.Head), branch.Tip.Sha, string.Format("reset: moving to {0}", branch.Tip.Sha), tag.Target.Sha);
             }
         }
 
         private static void FeedTheRepository(Repository repo)
         {
-            string fullPath = Path.Combine(repo.Info.WorkingDirectory, "a.txt");
-            File.WriteAllText(fullPath, "Hello\n");
+            string fullPath = Touch(repo.Info.WorkingDirectory, "a.txt", "Hello\n");
             repo.Index.Stage(fullPath);
             repo.Commit("Initial commit", Constants.Signature, Constants.Signature);
             repo.ApplyTag("mytag");
@@ -148,9 +151,9 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void MixedResetRefreshesTheIndex()
         {
-            SelfCleaningDirectory scd = BuildSelfCleaningDirectory();
+            string repoPath = InitNewRepository();
 
-            using (var repo = Repository.Init(scd.DirectoryPath))
+            using (var repo = new Repository(repoPath))
             {
                 FeedTheRepository(repo);
 
@@ -159,6 +162,9 @@ namespace LibGit2Sharp.Tests
                 repo.Reset(ResetOptions.Mixed, tag.CanonicalName);
 
                 Assert.Equal(FileStatus.Modified, repo.Index.RetrieveStatus("a.txt"));
+
+                AssertReflogEntryIsCreated(repo.Refs.Log(repo.Refs.Head), tag.Target.Sha, string.Format("reset: moving to {0}", tag.Target.Sha));
+
             }
         }
 
@@ -183,15 +189,13 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void HardResetUpdatesTheContentOfTheWorkingDirectory()
         {
-            var clone = BuildTemporaryCloneOfTestRepo(StandardTestRepoWorkingDirPath);
-
-            using (var repo = new Repository(clone.DirectoryPath))
+            string path = CloneStandardTestRepo();
+            using (var repo = new Repository(path))
             {
                 var names = new DirectoryInfo(repo.Info.WorkingDirectory).GetFileSystemInfos().Select(fsi => fsi.Name).ToList();
-                names.Sort(StringComparer.Ordinal);
 
                 File.Delete(Path.Combine(repo.Info.WorkingDirectory, "README"));
-                File.WriteAllText(Path.Combine(repo.Info.WorkingDirectory, "WillNotBeRemoved.txt"), "content\n");
+                Touch(repo.Info.WorkingDirectory, "WillNotBeRemoved.txt", "content\n");
 
                 Assert.True(names.Count > 4);
 

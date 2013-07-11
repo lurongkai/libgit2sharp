@@ -3,12 +3,11 @@ using System.Diagnostics;
 using System.Globalization;
 using LibGit2Sharp.Core;
 using LibGit2Sharp.Core.Handles;
-using LibGit2Sharp.Handlers;
 
 namespace LibGit2Sharp
 {
     /// <summary>
-    ///   A remote repository whose branches are tracked.
+    /// A remote repository whose branches are tracked.
     /// </summary>
     [DebuggerDisplay("{DebuggerDisplay,nq}")]
     public class Remote : IEquatable<Remote>
@@ -19,128 +18,81 @@ namespace LibGit2Sharp
         private readonly Repository repository;
 
         /// <summary>
-        ///   Needed for mocking purposes.
+        /// Needed for mocking purposes.
         /// </summary>
         protected Remote()
         { }
 
-        private Remote(Repository repository, string name, string url)
+        private Remote(Repository repository, string name, string url, TagFetchMode tagFetchMode)
         {
             this.repository = repository;
-            this.Name = name;
-            this.Url = url;
+            Name = name;
+            Url = url;
+            TagFetchMode = tagFetchMode;
         }
 
         internal static Remote BuildFromPtr(RemoteSafeHandle handle, Repository repo)
         {
             string name = Proxy.git_remote_name(handle);
             string url = Proxy.git_remote_url(handle);
+            TagFetchMode tagFetchMode = Proxy.git_remote_autotag(handle);
 
-            var remote = new Remote(repo, name, url);
+            var remote = new Remote(repo, name, url, tagFetchMode);
 
             return remote;
         }
 
         /// <summary>
-        ///   Gets the alias of this remote repository.
+        /// Gets the alias of this remote repository.
         /// </summary>
         public virtual string Name { get; private set; }
 
         /// <summary>
-        ///   Gets the url to use to communicate with this remote repository.
+        /// Gets the url to use to communicate with this remote repository.
         /// </summary>
         public virtual string Url { get; private set; }
 
         /// <summary>
-        ///   Fetch from the <see cref = "Remote" />.
+        /// Gets the Tag Fetch Mode of the remote - indicating how tags are fetched.
         /// </summary>
-        /// <param name="tagFetchMode">Optional parameter indicating what tags to download.</param>
-        /// <param name="onProgress">Progress callback. Corresponds to libgit2 progress callback.</param>
-        /// <param name="onCompletion">Completion callback. Corresponds to libgit2 completion callback.</param>
-        /// <param name="onUpdateTips">UpdateTips callback. Corresponds to libgit2 update_tips callback.</param>
-        /// <param name="onTransferProgress">Callback method that transfer progress will be reported through.
-        ///   Reports the client's state regarding the received and processed (bytes, objects) from the server.</param>
-        /// <param name="credentials">Credentials to use for username/password authentication.</param>
-        public virtual void Fetch(
-            TagFetchMode tagFetchMode = TagFetchMode.Auto,
-            ProgressHandler onProgress = null,
-            CompletionHandler onCompletion = null,
-            UpdateTipsHandler onUpdateTips = null,
-            TransferProgressHandler onTransferProgress = null,
-            Credentials credentials = null)
+        public virtual TagFetchMode TagFetchMode { get; private set; }
+
+        /// <summary>
+        /// Transform a reference to its source reference using the <see cref="Remote"/>'s default fetchspec.
+        /// </summary>
+        /// <param name="reference">The reference to transform.</param>
+        /// <returns>The transformed reference.</returns>
+        internal string FetchSpecTransformToSource(string reference)
         {
-            // We need to keep a reference to the git_cred_acquire_cb callback around
-            // so it will not be garbage collected before we are done with it.
-            // Note that we also have a GC.KeepAlive call at the end of the method.
-            NativeMethods.git_cred_acquire_cb credentialCallback = null;
-
-            using (RemoteSafeHandle remoteHandle = Proxy.git_remote_load(repository.Handle, this.Name, true))
+            using (RemoteSafeHandle remoteHandle = Proxy.git_remote_load(repository.Handle, Name, true))
             {
-                var callbacks = new RemoteCallbacks(onProgress, onCompletion, onUpdateTips);
-                GitRemoteCallbacks gitCallbacks = callbacks.GenerateCallbacks();
-
-                Proxy.git_remote_set_autotag(remoteHandle, tagFetchMode);
-
-                if (credentials != null)
-                {
-                    credentialCallback = (out IntPtr cred, IntPtr url, IntPtr username_from_url, uint types, IntPtr payload) =>
-                        NativeMethods.git_cred_userpass_plaintext_new(out cred, credentials.Username, credentials.Password);
-
-                    Proxy.git_remote_set_cred_acquire_cb(
-                        remoteHandle,
-                        credentialCallback,
-                        IntPtr.Zero);
-                }
-
-                // It is OK to pass the reference to the GitCallbacks directly here because libgit2 makes a copy of
-                // the data in the git_remote_callbacks structure. If, in the future, libgit2 changes its implementation
-                // to store a reference to the git_remote_callbacks structure this would introduce a subtle bug
-                // where the managed layer could move the git_remote_callbacks to a different location in memory,
-                // but libgit2 would still reference the old address.
-                //
-                // Also, if GitRemoteCallbacks were a class instead of a struct, we would need to guard against
-                // GC occuring in between setting the remote callbacks and actual usage in one of the functions afterwords.
-                Proxy.git_remote_set_callbacks(remoteHandle, ref gitCallbacks);
-
-                try
-                {
-                    Proxy.git_remote_connect(remoteHandle, GitDirection.Fetch);
-                    Proxy.git_remote_download(remoteHandle, onTransferProgress);
-                    Proxy.git_remote_update_tips(remoteHandle);
-                }
-                finally
-                {
-                    Proxy.git_remote_disconnect(remoteHandle);
-                }
+                GitRefSpecHandle fetchSpecPtr = Proxy.git_remote_get_refspec(remoteHandle, 0);
+                return Proxy.git_refspec_rtransform(fetchSpecPtr, reference);
             }
-
-            // To be safe, make sure the credential callback is kept until
-            // alive until at least this point.
-            GC.KeepAlive(credentialCallback);
         }
 
         /// <summary>
-        ///   Determines whether the specified <see cref = "Object" /> is equal to the current <see cref = "Remote" />.
+        /// Determines whether the specified <see cref="Object"/> is equal to the current <see cref="Remote"/>.
         /// </summary>
-        /// <param name = "obj">The <see cref = "Object" /> to compare with the current <see cref = "Remote" />.</param>
-        /// <returns>True if the specified <see cref = "Object" /> is equal to the current <see cref = "Remote" />; otherwise, false.</returns>
+        /// <param name="obj">The <see cref="Object"/> to compare with the current <see cref="Remote"/>.</param>
+        /// <returns>True if the specified <see cref="Object"/> is equal to the current <see cref="Remote"/>; otherwise, false.</returns>
         public override bool Equals(object obj)
         {
             return Equals(obj as Remote);
         }
 
         /// <summary>
-        ///   Determines whether the specified <see cref = "Remote" /> is equal to the current <see cref = "Remote" />.
+        /// Determines whether the specified <see cref="Remote"/> is equal to the current <see cref="Remote"/>.
         /// </summary>
-        /// <param name = "other">The <see cref = "Remote" /> to compare with the current <see cref = "Remote" />.</param>
-        /// <returns>True if the specified <see cref = "Remote" /> is equal to the current <see cref = "Remote" />; otherwise, false.</returns>
+        /// <param name="other">The <see cref="Remote"/> to compare with the current <see cref="Remote"/>.</param>
+        /// <returns>True if the specified <see cref="Remote"/> is equal to the current <see cref="Remote"/>; otherwise, false.</returns>
         public bool Equals(Remote other)
         {
             return equalityHelper.Equals(this, other);
         }
 
         /// <summary>
-        ///   Returns the hash code for this instance.
+        /// Returns the hash code for this instance.
         /// </summary>
         /// <returns>A 32-bit signed integer hash code.</returns>
         public override int GetHashCode()
@@ -149,10 +101,10 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   Tests if two <see cref = "Remote" /> are equal.
+        /// Tests if two <see cref="Remote"/> are equal.
         /// </summary>
-        /// <param name = "left">First <see cref = "Remote" /> to compare.</param>
-        /// <param name = "right">Second <see cref = "Remote" /> to compare.</param>
+        /// <param name="left">First <see cref="Remote"/> to compare.</param>
+        /// <param name="right">Second <see cref="Remote"/> to compare.</param>
         /// <returns>True if the two objects are equal; false otherwise.</returns>
         public static bool operator ==(Remote left, Remote right)
         {
@@ -160,10 +112,10 @@ namespace LibGit2Sharp
         }
 
         /// <summary>
-        ///   Tests if two <see cref = "Remote" /> are different.
+        /// Tests if two <see cref="Remote"/> are different.
         /// </summary>
-        /// <param name = "left">First <see cref = "Remote" /> to compare.</param>
-        /// <param name = "right">Second <see cref = "Remote" /> to compare.</param>
+        /// <param name="left">First <see cref="Remote"/> to compare.</param>
+        /// <param name="right">Second <see cref="Remote"/> to compare.</param>
         /// <returns>True if the two objects are different; false otherwise.</returns>
         public static bool operator !=(Remote left, Remote right)
         {

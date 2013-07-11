@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using LibGit2Sharp.Tests.TestHelpers;
 using Xunit;
@@ -54,7 +55,13 @@ namespace LibGit2Sharp.Tests
             using (var repo = new Repository(BareTestRepoPath))
             {
                 var tree = repo.Lookup<Tree>(sha);
-                Assert.Equal(3, tree.Blobs.Count());
+                
+                IEnumerable<Blob> blobs = tree
+                    .Where(e => e.TargetType == TreeEntryTargetType.Blob)
+                    .Select(e => e.Target)
+                    .Cast<Blob>();
+
+                Assert.Equal(3, blobs.Count());
             }
         }
 
@@ -64,7 +71,13 @@ namespace LibGit2Sharp.Tests
             using (var repo = new Repository(BareTestRepoPath))
             {
                 var tree = repo.Lookup<Tree>(sha);
-                Assert.Equal(1, tree.Trees.Count());
+
+                IEnumerable<Tree> subTrees = tree
+                    .Where(e => e.TargetType == TreeEntryTargetType.Tree)
+                    .Select(e => e.Target)
+                    .Cast<Tree>();
+
+                Assert.Equal(1, subTrees.Count());
             }
         }
 
@@ -159,7 +172,7 @@ namespace LibGit2Sharp.Tests
                 TreeEntry blobTreeEntry = commitTree["1/branch_file.txt"];
                 Assert.Equal(completePath, blobTreeEntry.Path);
 
-                // A tree entry is now fetched through a relative path to the 
+                // A tree entry is now fetched through a relative path to the
                 // tree but exposes a complete path through its Path property
                 var subTree = treeTreeEntry.Target as Tree;
                 Assert.NotNull(subTree);

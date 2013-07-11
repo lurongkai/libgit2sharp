@@ -52,17 +52,16 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanProvideADifferentWorkDirToAStandardRepo()
         {
-            var scd = BuildTemporaryCloneOfTestRepo(StandardTestRepoWorkingDirPath);
-
-            using (var repo = new Repository(scd.DirectoryPath))
+            var path1 = CloneStandardTestRepo();
+            using (var repo = new Repository(path1))
             {
                 Assert.Equal(FileStatus.Unaltered, repo.Index.RetrieveStatus("1/branch_file.txt"));
             }
 
             var options = new RepositoryOptions { WorkingDirectoryPath = newWorkdir };
 
-            scd = BuildTemporaryCloneOfTestRepo(StandardTestRepoWorkingDirPath);
-            using (var repo = new Repository(scd.DirectoryPath, options))
+            var path2 = CloneStandardTestRepo();
+            using (var repo = new Repository(path2, options))
             {
                 Assert.Equal(FileStatus.Missing, repo.Index.RetrieveStatus("1/branch_file.txt"));
             }
@@ -71,9 +70,8 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanProvideADifferentIndexToAStandardRepo()
         {
-            var scd = BuildTemporaryCloneOfTestRepo(StandardTestRepoWorkingDirPath);
-
-            using (var repo = new Repository(scd.DirectoryPath))
+            var path1 = CloneStandardTestRepo();
+            using (var repo = new Repository(path1))
             {
                 Assert.Equal(FileStatus.Untracked, repo.Index.RetrieveStatus("new_untracked_file.txt"));
 
@@ -86,8 +84,8 @@ namespace LibGit2Sharp.Tests
 
             var options = new RepositoryOptions { IndexPath = newIndex };
 
-            scd = BuildTemporaryCloneOfTestRepo(StandardTestRepoWorkingDirPath);
-            using (var repo = new Repository(scd.DirectoryPath, options))
+            var path2 = CloneStandardTestRepo();
+            using (var repo = new Repository(path2, options))
             {
                 Assert.Equal(FileStatus.Added, repo.Index.RetrieveStatus("new_untracked_file.txt"));
             }
@@ -103,15 +101,14 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanSneakAdditionalCommitsIntoAStandardRepoWithoutAlteringTheWorkdirOrTheIndex()
         {
-            var scd = BuildTemporaryCloneOfTestRepo(StandardTestRepoWorkingDirPath);
-
-            using (var repo = new Repository(scd.DirectoryPath))
+            string path = CloneStandardTestRepo();
+            using (var repo = new Repository(path))
             {
                 Branch head = repo.Head;
 
                 Assert.Equal(FileStatus.Nonexistent, repo.Index.RetrieveStatus("zomg.txt"));
 
-                string commitSha = MeanwhileInAnotherDimensionAnEvilMastermindIsAtWork(scd.DirectoryPath);
+                string commitSha = MeanwhileInAnotherDimensionAnEvilMastermindIsAtWork(path);
 
                 Branch newHead = repo.Head;
 
@@ -132,11 +129,11 @@ namespace LibGit2Sharp.Tests
 
                 sneakyRepo.Reset(ResetOptions.Mixed, sneakyRepo.Head.Tip.Sha);
 
-                var filepath = Path.Combine(sneakyRepo.Info.WorkingDirectory, "zomg.txt");
-                File.WriteAllText(filepath, "I'm being sneaked in!\n");
+                const string filename = "zomg.txt";
+                Touch(sneakyRepo.Info.WorkingDirectory, filename, "I'm being sneaked in!\n");
 
-                sneakyRepo.Index.Stage(filepath);
-                return sneakyRepo.Commit("Tadaaaa!", DummySignature, DummySignature).Sha;
+                sneakyRepo.Index.Stage(filename);
+                return sneakyRepo.Commit("Tadaaaa!", Constants.Signature, Constants.Signature).Sha;
             }
         }
 
@@ -176,73 +173,6 @@ namespace LibGit2Sharp.Tests
             }
 
             AssertValueInConfigFile(systemLocation, "xpaulbettsx");
-        }
-
-        [Fact]
-        public void CanProvideDifferentWorkingDirOnInit()
-        {
-            SelfCleaningDirectory scd = BuildSelfCleaningDirectory();
-            var options = new RepositoryOptions {WorkingDirectoryPath = newWorkdir};
-
-            using (var repo = Repository.Init(scd.DirectoryPath, false, options))
-            {
-                Assert.Equal(Path.GetFullPath(newWorkdir) + Path.DirectorySeparatorChar, repo.Info.WorkingDirectory);
-            }
-        }
-
-        [Fact]
-        public void CanProvideDifferentConfigurationFilesOnInit()
-        {
-            SelfCleaningDirectory scd = BuildSelfCleaningDirectory();
-            var options = BuildFakeConfigs(scd);
-
-            using (var repo = Repository.Init(scd.DirectoryPath, false, options))
-            {
-                Assert.True(repo.Config.HasConfig(ConfigurationLevel.Global));
-                Assert.Equal("global", repo.Config.Get<string>("woot.this-rocks").Value);
-                Assert.Equal(42, repo.Config.Get<int>("wow.man-I-am-totally-global").Value);
-
-                Assert.True(repo.Config.HasConfig(ConfigurationLevel.Xdg));
-                Assert.Equal("xdg", repo.Config.Get<string>("woot.this-rocks", ConfigurationLevel.Xdg).Value);
-
-                Assert.True(repo.Config.HasConfig(ConfigurationLevel.System));
-                Assert.Equal("system", repo.Config.Get<string>("woot.this-rocks", ConfigurationLevel.System).Value);
-            }
-        }
-
-        [Fact]
-        public void CanProvideDifferentWorkingDirOnClone()
-        {
-            string url = "https://github.com/libgit2/TestGitRepository";
-            var scd = BuildSelfCleaningDirectory();
-            var options = new RepositoryOptions { WorkingDirectoryPath = newWorkdir };
-
-            using (var repo = Repository.Clone(url, scd.DirectoryPath, false, true, null, null, options))
-            {
-                Assert.Equal(Path.GetFullPath(newWorkdir) + Path.DirectorySeparatorChar, repo.Info.WorkingDirectory);
-            }
-        }
-
-        [Fact]
-        public void CanProvideDifferentConfigurationFilesOnClone()
-        {
-            string url = "https://github.com/libgit2/TestGitRepository";
-            var scd = BuildSelfCleaningDirectory();
-            var configScd = BuildSelfCleaningDirectory();
-            var options = BuildFakeConfigs(configScd);
-
-            using (var repo = Repository.Clone(url, scd.DirectoryPath, false, true, null, null, options))
-            {
-                Assert.True(repo.Config.HasConfig(ConfigurationLevel.Global));
-                Assert.Equal("global", repo.Config.Get<string>("woot.this-rocks").Value);
-                Assert.Equal(42, repo.Config.Get<int>("wow.man-I-am-totally-global").Value);
-
-                Assert.True(repo.Config.HasConfig(ConfigurationLevel.Xdg));
-                Assert.Equal("xdg", repo.Config.Get<string>("woot.this-rocks", ConfigurationLevel.Xdg).Value);
-
-                Assert.True(repo.Config.HasConfig(ConfigurationLevel.System));
-                Assert.Equal("system", repo.Config.Get<string>("woot.this-rocks", ConfigurationLevel.System).Value);
-            }
         }
     }
 }

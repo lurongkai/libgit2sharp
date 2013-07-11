@@ -25,8 +25,8 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanCorrectlyCountCommitsWhenSwitchingToAnotherBranch()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo(StandardTestRepoWorkingDirPath);
-            using (var repo = new Repository(path.RepositoryPath))
+            string path = CloneStandardTestRepo();
+            using (var repo = new Repository(path))
             {
                 // Hard reset and then remove untracked files
                 repo.Reset(ResetOptions.Hard);
@@ -60,8 +60,8 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanEnumerateCommitsInDetachedHeadState()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo();
-            using (var repo = new Repository(path.RepositoryPath))
+            string path = CloneBareTestRepo();
+            using (var repo = new Repository(path))
             {
                 ObjectId parentOfHead = repo.Head.Tip.Parents.First().Id;
 
@@ -77,7 +77,7 @@ namespace LibGit2Sharp.Tests
         {
             using (var repo = new Repository(BareTestRepoPath))
             {
-                Assert.Equal(GitSortOptions.Time, repo.Commits.SortedBy);
+                Assert.Equal(CommitSortStrategies.Time, repo.Commits.SortedBy);
             }
         }
 
@@ -87,7 +87,7 @@ namespace LibGit2Sharp.Tests
             int count = 0;
             using (var repo = new Repository(BareTestRepoPath))
             {
-                foreach (Commit commit in repo.Commits.QueryBy(new Filter { Since = "a4a7dce85cf63874e984719f4fdd239f5145052f" }))
+                foreach (Commit commit in repo.Commits.QueryBy(new CommitFilter { Since = "a4a7dce85cf63874e984719f4fdd239f5145052f" }))
                 {
                     Assert.NotNull(commit);
                     count++;
@@ -101,22 +101,22 @@ namespace LibGit2Sharp.Tests
         {
             using (var repo = new Repository(BareTestRepoPath))
             {
-                Assert.Throws<LibGit2SharpException>(() => repo.Commits.QueryBy(new Filter { Since = Constants.UnknownSha }).Count());
-                Assert.Throws<LibGit2SharpException>(() => repo.Commits.QueryBy(new Filter { Since = "refs/heads/deadbeef" }).Count());
-                Assert.Throws<ArgumentNullException>(() => repo.Commits.QueryBy(new Filter { Since = null }).Count());
+                Assert.Throws<LibGit2SharpException>(() => repo.Commits.QueryBy(new CommitFilter { Since = Constants.UnknownSha }).Count());
+                Assert.Throws<LibGit2SharpException>(() => repo.Commits.QueryBy(new CommitFilter { Since = "refs/heads/deadbeef" }).Count());
+                Assert.Throws<ArgumentNullException>(() => repo.Commits.QueryBy(new CommitFilter { Since = null }).Count());
             }
         }
 
         [Fact]
         public void QueryingTheCommitHistoryFromACorruptedReferenceThrows()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo();
-            using (var repo = new Repository(path.RepositoryPath))
+            string path = CloneBareTestRepo();
+            using (var repo = new Repository(path))
             {
                 CreateCorruptedDeadBeefHead(repo.Info.Path);
 
-                Assert.Throws<LibGit2SharpException>(() => repo.Commits.QueryBy(new Filter { Since = repo.Branches["deadbeef"] }).Count());
-                Assert.Throws<LibGit2SharpException>(() => repo.Commits.QueryBy(new Filter { Since = repo.Refs["refs/heads/deadbeef"] }).Count());
+                Assert.Throws<LibGit2SharpException>(() => repo.Commits.QueryBy(new CommitFilter { Since = repo.Branches["deadbeef"] }).Count());
+                Assert.Throws<LibGit2SharpException>(() => repo.Commits.QueryBy(new CommitFilter { Since = repo.Refs["refs/heads/deadbeef"] }).Count());
             }
         }
 
@@ -125,9 +125,9 @@ namespace LibGit2Sharp.Tests
         {
             using (var repo = new Repository(BareTestRepoPath))
             {
-                Assert.Throws<ArgumentException>(() => repo.Commits.QueryBy(new Filter { Since = string.Empty }));
-                Assert.Throws<ArgumentNullException>(() => repo.Commits.QueryBy(new Filter { Since = null }));
-                Assert.Throws<ArgumentNullException>(() => repo.Commits.QueryBy(null));
+                Assert.Throws<ArgumentException>(() => repo.Commits.QueryBy(new CommitFilter { Since = string.Empty }));
+                Assert.Throws<ArgumentNullException>(() => repo.Commits.QueryBy(new CommitFilter { Since = null }));
+                Assert.Throws<ArgumentNullException>(() => repo.Commits.QueryBy(default(CommitFilter)));
             }
         }
 
@@ -140,7 +140,11 @@ namespace LibGit2Sharp.Tests
             int count = 0;
             using (var repo = new Repository(BareTestRepoPath))
             {
-                foreach (Commit commit in repo.Commits.QueryBy(new Filter { Since = "a4a7dce85cf63874e984719f4fdd239f5145052f", SortBy = GitSortOptions.Time | GitSortOptions.Reverse }))
+                foreach (Commit commit in repo.Commits.QueryBy(new CommitFilter
+                                                                    {
+                                                                        Since = "a4a7dce85cf63874e984719f4fdd239f5145052f",
+                                                                        SortBy = CommitSortStrategies.Time | CommitSortStrategies.Reverse
+                                                                    }))
                 {
                     Assert.NotNull(commit);
                     Assert.True(commit.Sha.StartsWith(reversedShas[count]));
@@ -155,7 +159,11 @@ namespace LibGit2Sharp.Tests
         {
             using (var repo = new Repository(BareTestRepoPath))
             {
-                List<Commit> commits = repo.Commits.QueryBy(new Filter { Since = "a4a7dce85cf63874e984719f4fdd239f5145052f", SortBy = GitSortOptions.Time | GitSortOptions.Reverse }).ToList();
+                List<Commit> commits = repo.Commits.QueryBy(new CommitFilter
+                                                                {
+                                                                    Since = "a4a7dce85cf63874e984719f4fdd239f5145052f",
+                                                                    SortBy = CommitSortStrategies.Time | CommitSortStrategies.Reverse
+                                                                }).ToList();
                 foreach (Commit commit in commits)
                 {
                     Assert.NotNull(commit);
@@ -183,7 +191,11 @@ namespace LibGit2Sharp.Tests
             int count = 0;
             using (var repo = new Repository(BareTestRepoPath))
             {
-                foreach (Commit commit in repo.Commits.QueryBy(new Filter { Since = "a4a7dce85cf63874e984719f4fdd239f5145052f", SortBy = GitSortOptions.Time }))
+                foreach (Commit commit in repo.Commits.QueryBy(new CommitFilter
+                                                                    { 
+                                                                        Since = "a4a7dce85cf63874e984719f4fdd239f5145052f",
+                                                                        SortBy = CommitSortStrategies.Time
+                                                                    }))
                 {
                     Assert.NotNull(commit);
                     Assert.True(commit.Sha.StartsWith(expectedShas[count]));
@@ -198,7 +210,11 @@ namespace LibGit2Sharp.Tests
         {
             using (var repo = new Repository(BareTestRepoPath))
             {
-                List<Commit> commits = repo.Commits.QueryBy(new Filter { Since = "a4a7dce85cf63874e984719f4fdd239f5145052f", SortBy = GitSortOptions.Topological }).ToList();
+                List<Commit> commits = repo.Commits.QueryBy(new CommitFilter
+                                                                {
+                                                                    Since = "a4a7dce85cf63874e984719f4fdd239f5145052f",
+                                                                    SortBy = CommitSortStrategies.Topological
+                                                                }).ToList();
                 foreach (Commit commit in commits)
                 {
                     Assert.NotNull(commit);
@@ -215,7 +231,7 @@ namespace LibGit2Sharp.Tests
         public void CanEnumerateFromHead()
         {
             AssertEnumerationOfCommits(
-                repo => new Filter { Since = repo.Head },
+                repo => new CommitFilter { Since = repo.Head },
                 new[]
                     {
                         "4c062a6", "be3563a", "c47800c", "9fd738e",
@@ -226,8 +242,8 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanEnumerateFromDetachedHead()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo(StandardTestRepoWorkingDirPath);
-            using (var repoClone = new Repository(path.RepositoryPath))
+            string path = CloneStandardTestRepo();
+            using (var repoClone = new Repository(path))
             {
                 // Hard reset and then remove untracked files
                 repoClone.Reset(ResetOptions.Hard);
@@ -237,7 +253,7 @@ namespace LibGit2Sharp.Tests
                 repoClone.Checkout(headSha);
 
                 AssertEnumerationOfCommitsInRepo(repoClone,
-                    repo => new Filter { Since = repo.Head },
+                    repo => new CommitFilter { Since = repo.Head },
                     new[]
                         {
                             "32eab9c", "592d3c8", "4c062a6",
@@ -251,7 +267,7 @@ namespace LibGit2Sharp.Tests
         public void CanEnumerateUsingTwoHeadsAsBoundaries()
         {
             AssertEnumerationOfCommits(
-                repo => new Filter { Since = "HEAD", Until = "refs/heads/br2" },
+                repo => new CommitFilter { Since = "HEAD", Until = "refs/heads/br2" },
                 new[] { "4c062a6", "be3563a" }
                 );
         }
@@ -260,7 +276,7 @@ namespace LibGit2Sharp.Tests
         public void CanEnumerateUsingImplicitHeadAsSinceBoundary()
         {
             AssertEnumerationOfCommits(
-                repo => new Filter { Until = "refs/heads/br2" },
+                repo => new CommitFilter { Until = "refs/heads/br2" },
                 new[] { "4c062a6", "be3563a" }
                 );
         }
@@ -269,7 +285,7 @@ namespace LibGit2Sharp.Tests
         public void CanEnumerateUsingTwoAbbreviatedShasAsBoundaries()
         {
             AssertEnumerationOfCommits(
-                repo => new Filter { Since = "a4a7dce", Until = "4a202b3" },
+                repo => new CommitFilter { Since = "a4a7dce", Until = "4a202b3" },
                 new[] { "a4a7dce", "c47800c", "9fd738e" }
                 );
         }
@@ -278,7 +294,7 @@ namespace LibGit2Sharp.Tests
         public void CanEnumerateCommitsFromTwoHeads()
         {
             AssertEnumerationOfCommits(
-                repo => new Filter { Since = new[] { "refs/heads/br2", "refs/heads/master" } },
+                repo => new CommitFilter { Since = new[] { "refs/heads/br2", "refs/heads/master" } },
                 new[]
                     {
                         "4c062a6", "a4a7dce", "be3563a", "c47800c",
@@ -290,7 +306,7 @@ namespace LibGit2Sharp.Tests
         public void CanEnumerateCommitsFromMixedStartingPoints()
         {
             AssertEnumerationOfCommits(
-                repo => new Filter { Since = new object[] { repo.Branches["br2"],
+                repo => new CommitFilter { Since = new object[] { repo.Branches["br2"],
                                                             "refs/heads/master",
                                                             new ObjectId("e90810b8df3e80c413d903f631643c716887138d") } },
                 new[]
@@ -305,7 +321,7 @@ namespace LibGit2Sharp.Tests
         public void CanEnumerateCommitsUsingGlob()
         {
             AssertEnumerationOfCommits(
-                repo => new Filter { Since = repo.Refs.FromGlob("refs/heads/*") },
+                repo => new CommitFilter { Since = repo.Refs.FromGlob("refs/heads/*") },
                 new[]
                    {
                        "4c062a6", "e90810b", "6dcf9bf", "a4a7dce", "be3563a", "c47800c", "9fd738e", "4a202b3", "41bc8c6", "5001298", "5b5b025", "8496071"
@@ -316,7 +332,7 @@ namespace LibGit2Sharp.Tests
         public void CanHideCommitsUsingGlob()
         {
             AssertEnumerationOfCommits(
-                repo => new Filter { Since = "refs/heads/packed-test", Until = repo.Refs.FromGlob("*/packed") },
+                repo => new CommitFilter { Since = "refs/heads/packed-test", Until = repo.Refs.FromGlob("*/packed") },
                 new[]
                    {
                        "4a202b3", "5b5b025", "8496071"
@@ -338,7 +354,7 @@ namespace LibGit2Sharp.Tests
         private static void CanEnumerateCommitsFromATag(Func<Tag, object> transformer)
         {
             AssertEnumerationOfCommits(
-                repo => new Filter { Since = transformer(repo.Tags["test"]) },
+                repo => new CommitFilter { Since = transformer(repo.Tags["test"]) },
                 new[] { "e90810b", "6dcf9bf", }
                 );
         }
@@ -347,7 +363,10 @@ namespace LibGit2Sharp.Tests
         public void CanEnumerateAllCommits()
         {
             AssertEnumerationOfCommits(
-                repo => new Filter { Since = repo.Refs },
+                repo => new CommitFilter
+                    {
+                        Since = repo.Refs.OrderBy(r => r.CanonicalName, StringComparer.Ordinal),
+                    },
                 new[]
                     {
                         "44d5d18", "bb65291", "532740a", "503a16f", "3dfd6fd",
@@ -361,28 +380,27 @@ namespace LibGit2Sharp.Tests
         public void CanEnumerateCommitsFromATagWhichPointsToABlob()
         {
             AssertEnumerationOfCommits(
-                repo => new Filter { Since = repo.Tags["point_to_blob"] },
+                repo => new CommitFilter { Since = repo.Tags["point_to_blob"] },
                 new string[] { });
         }
 
         [Fact]
         public void CanEnumerateCommitsFromATagWhichPointsToATree()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo(BareTestRepoPath);
-
-            using (var repo = new Repository(path.RepositoryPath))
+            string path = CloneBareTestRepo();
+            using (var repo = new Repository(path))
             {
                 string headTreeSha = repo.Head.Tip.Tree.Sha;
 
                 Tag tag = repo.ApplyTag("point_to_tree", headTreeSha);
 
                 AssertEnumerationOfCommitsInRepo(repo,
-                    r => new Filter { Since = tag },
+                    r => new CommitFilter { Since = tag },
                     new string[] { });
             }
         }
 
-        private static void AssertEnumerationOfCommits(Func<Repository, Filter> filterBuilder, IEnumerable<string> abbrevIds)
+        private static void AssertEnumerationOfCommits(Func<Repository, CommitFilter> filterBuilder, IEnumerable<string> abbrevIds)
         {
             using (var repo = new Repository(BareTestRepoPath))
             {
@@ -390,7 +408,7 @@ namespace LibGit2Sharp.Tests
             }
         }
 
-        private static void AssertEnumerationOfCommitsInRepo(Repository repo, Func<Repository, Filter> filterBuilder, IEnumerable<string> abbrevIds)
+        private static void AssertEnumerationOfCommitsInRepo(Repository repo, Func<Repository, CommitFilter> filterBuilder, IEnumerable<string> abbrevIds)
         {
             ICommitLog commits = repo.Commits.QueryBy(filterBuilder(repo));
 
@@ -492,9 +510,9 @@ namespace LibGit2Sharp.Tests
         [SkippableFact]
         public void CanCommitWithSignatureFromConfig()
         {
-            SelfCleaningDirectory scd = BuildSelfCleaningDirectory();
+            string repoPath = InitNewRepository();
 
-            using (var repo = Repository.Init(scd.DirectoryPath)) 
+            using (var repo = new Repository(repoPath))
             {
                 string dir = repo.Info.Path;
                 Assert.True(Path.IsPathRooted(dir));
@@ -504,10 +522,9 @@ namespace LibGit2Sharp.Tests
                     "No Git global configuration available");
 
                 const string relativeFilepath = "new.txt";
-                string filePath = Path.Combine(repo.Info.WorkingDirectory, relativeFilepath);
-
-                File.WriteAllText(filePath, "null");
+                string filePath = Touch(repo.Info.WorkingDirectory, relativeFilepath, "null");
                 repo.Index.Stage(relativeFilepath);
+
                 File.AppendAllText(filePath, "token\n");
                 repo.Index.Stage(relativeFilepath);
 
@@ -530,57 +547,60 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CommitParentsAreMergeHeads()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo(StandardTestRepoPath);
-            using (var repo = new Repository(path.RepositoryPath))
+            string path = CloneStandardTestRepo();
+            using (var repo = new Repository(path))
             {
                 repo.Reset(ResetOptions.Hard, "c47800");
 
                 CreateAndStageANewFile(repo);
 
-                string mergeHeadPath = Path.Combine(repo.Info.Path, "MERGE_HEAD");
-                File.WriteAllText(mergeHeadPath, "9fd738e8f7967c078dceed8190330fc8648ee56a\n");
+                Touch(repo.Info.Path, "MERGE_HEAD", "9fd738e8f7967c078dceed8190330fc8648ee56a\n");
 
-                Commit newMergedCommit = repo.Commit("Merge commit", DummySignature, DummySignature, false);
+                Assert.Equal(CurrentOperation.Merge, repo.Info.CurrentOperation);
+
+                Commit newMergedCommit = repo.Commit("Merge commit", Constants.Signature, Constants.Signature);
+
+                Assert.Equal(CurrentOperation.None, repo.Info.CurrentOperation);
 
                 Assert.Equal(2, newMergedCommit.Parents.Count());
                 Assert.Equal(newMergedCommit.Parents.First().Sha, "c47800c7266a2be04c571c04d5a6614691ea99bd");
                 Assert.Equal(newMergedCommit.Parents.Skip(1).First().Sha, "9fd738e8f7967c078dceed8190330fc8648ee56a");
+
+                // Assert reflog entry is created
+                var reflogEntry = repo.Refs.Log(repo.Refs.Head).First();
+                Assert.Equal(repo.Head.Tip.Id, reflogEntry.To);
+                Assert.NotNull(reflogEntry.Commiter.Email);
+                Assert.NotNull(reflogEntry.Commiter.Name);
+                Assert.Equal(string.Format("commit (merge): {0}", newMergedCommit.MessageShort), reflogEntry.Message);
             }
         }
 
         [Fact]
         public void CommitCleansUpMergeMetadata()
         {
-            SelfCleaningDirectory scd = BuildSelfCleaningDirectory();
+            string repoPath = InitNewRepository();
 
-            using (var repo = Repository.Init(scd.DirectoryPath))
+            using (var repo = new Repository(repoPath))
             {
                 string dir = repo.Info.Path;
                 Assert.True(Path.IsPathRooted(dir));
                 Assert.True(Directory.Exists(dir));
 
                 const string relativeFilepath = "new.txt";
-                string filePath = Path.Combine(repo.Info.WorkingDirectory, relativeFilepath);
-
-                File.WriteAllText(filePath, "this is a new file");
+                Touch(repo.Info.WorkingDirectory, relativeFilepath, "this is a new file");
                 repo.Index.Stage(relativeFilepath);
 
-                string mergeHeadPath = Path.Combine(repo.Info.Path, "MERGE_HEAD");
-                string mergeMsgPath = Path.Combine(repo.Info.Path, "MERGE_MSG");
-                string mergeModePath = Path.Combine(repo.Info.Path, "MERGE_MODE");
-                string origHeadPath = Path.Combine(repo.Info.Path, "ORIG_HEAD");
-
-                File.WriteAllText(mergeHeadPath, "abcdefabcdefabcdefabcdefabcdefabcdefabcd");
-                File.WriteAllText(mergeMsgPath, "This is a dummy merge.\n");
-                File.WriteAllText(mergeModePath, "no-ff");
-                File.WriteAllText(origHeadPath, "beefbeefbeefbeefbeefbeefbeefbeefbeefbeef");
+                string mergeHeadPath = Touch(repo.Info.Path, "MERGE_HEAD", "abcdefabcdefabcdefabcdefabcdefabcdefabcd");
+                string mergeMsgPath = Touch(repo.Info.Path, "MERGE_MSG", "This is a dummy merge.\n");
+                string mergeModePath = Touch(repo.Info.Path, "MERGE_MODE", "no-ff");
+                string origHeadPath = Touch(repo.Info.Path, "ORIG_HEAD", "beefbeefbeefbeefbeefbeefbeefbeefbeefbeef");
 
                 Assert.True(File.Exists(mergeHeadPath));
                 Assert.True(File.Exists(mergeMsgPath));
                 Assert.True(File.Exists(mergeModePath));
                 Assert.True(File.Exists(origHeadPath));
 
-                var author = DummySignature;
+                var author = Constants.Signature;
                 repo.Commit("Initial egotistic commit", author, author);
 
                 Assert.False(File.Exists(mergeHeadPath));
@@ -593,32 +613,47 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanCommitALittleBit()
         {
-            SelfCleaningDirectory scd = BuildSelfCleaningDirectory();
+            string repoPath = InitNewRepository();
 
-            using (var repo = Repository.Init(scd.DirectoryPath))
+            using (var repo = new Repository(repoPath))
             {
                 string dir = repo.Info.Path;
                 Assert.True(Path.IsPathRooted(dir));
                 Assert.True(Directory.Exists(dir));
 
                 const string relativeFilepath = "new.txt";
-                string filePath = Path.Combine(repo.Info.WorkingDirectory, relativeFilepath);
-
-                File.WriteAllText(filePath, "null");
+                string filePath = Touch(repo.Info.WorkingDirectory, relativeFilepath, "null");
                 repo.Index.Stage(relativeFilepath);
                 File.AppendAllText(filePath, "token\n");
                 repo.Index.Stage(relativeFilepath);
 
                 Assert.Null(repo.Head[relativeFilepath]);
 
-                var author = DummySignature;
-                Commit commit = repo.Commit("Initial egotistic commit", author, author);
+                var author = Constants.Signature;
+
+                const string shortMessage = "Initial egotistic commit"; 
+                const string commitMessage = shortMessage + "\n\nOnly the coolest commits from us";
+
+                Commit commit = repo.Commit(commitMessage, author, author);
 
                 AssertBlobContent(repo.Head[relativeFilepath], "nulltoken\n");
                 AssertBlobContent(commit[relativeFilepath], "nulltoken\n");
 
                 Assert.Equal(0, commit.Parents.Count());
-                Assert.False(repo.Info.IsEmpty);
+                Assert.False(repo.Info.IsHeadOrphaned);
+
+                // Assert a reflog entry is created on HEAD
+                Assert.Equal(1, repo.Refs.Log("HEAD").Count());
+                var reflogEntry = repo.Refs.Log("HEAD").First();
+                Assert.Equal(author, reflogEntry.Commiter);
+                Assert.Equal(commit.Id, reflogEntry.To);
+                Assert.Equal(ObjectId.Zero, reflogEntry.From);
+                Assert.Equal(string.Format("commit (initial): {0}", shortMessage), reflogEntry.Message);
+
+                // Assert a reflog entry is created on HEAD target
+                var targetCanonicalName = repo.Refs.Head.TargetIdentifier;
+                Assert.Equal(1, repo.Refs.Log(targetCanonicalName).Count());
+                Assert.Equal(commit.Id, repo.Refs.Log(targetCanonicalName).First().To);
 
                 File.WriteAllText(filePath, "nulltoken commits!\n");
                 repo.Index.Stage(relativeFilepath);
@@ -631,6 +666,10 @@ namespace LibGit2Sharp.Tests
 
                 Assert.Equal(1, commit2.Parents.Count());
                 Assert.Equal(commit.Id, commit2.Parents.First().Id);
+
+                // Assert the reflog is shifted
+                Assert.Equal(2, repo.Refs.Log("HEAD").Count());
+                Assert.Equal(reflogEntry.To, repo.Refs.Log("HEAD").First().From);
 
                 Branch firstCommitBranch = repo.CreateBranch("davidfowl-rules", commit);
                 repo.Checkout(firstCommitBranch);
@@ -654,18 +693,16 @@ namespace LibGit2Sharp.Tests
 
         private static void AssertBlobContent(TreeEntry entry, string expectedContent)
         {
-            Assert.Equal(GitObjectType.Blob, entry.Type);
+            Assert.Equal(TreeEntryTargetType.Blob, entry.TargetType);
             Assert.Equal(expectedContent, ((Blob)(entry.Target)).ContentAsUtf8());
         }
 
-        private static void CommitToANewRepository(string path)
+        private static void AddCommitToRepo(string path)
         {
-            using (Repository repo = Repository.Init(path))
+            using (var repo = new Repository(path))
             {
                 const string relativeFilepath = "test.txt";
-                string filePath = Path.Combine(repo.Info.WorkingDirectory, relativeFilepath);
-
-                File.WriteAllText(filePath, "test\n");
+                Touch(repo.Info.WorkingDirectory, relativeFilepath, "test\n");
                 repo.Index.Stage(relativeFilepath);
 
                 var author = new Signature("nulltoken", "emeric.fermas@gmail.com", DateTimeOffset.Parse("Wed, Dec 14 2011 08:29:03 +0100"));
@@ -676,18 +713,19 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanGeneratePredictableObjectShas()
         {
-            SelfCleaningDirectory scd = BuildSelfCleaningDirectory();
+            string repoPath = InitNewRepository();
 
-            CommitToANewRepository(scd.DirectoryPath);
+            AddCommitToRepo(repoPath);
 
-            using (var repo = new Repository(scd.DirectoryPath))
+            using (var repo = new Repository(repoPath))
             {
                 Commit commit = repo.Commits.Single();
                 Assert.Equal("1fe3126578fc4eca68c193e4a3a0a14a0704624d", commit.Sha);
                 Tree tree = commit.Tree;
                 Assert.Equal("2b297e643c551e76cfa1f93810c50811382f9117", tree.Sha);
 
-                Blob blob = tree.Blobs.Single();
+                GitObject blob = tree.Single().Target;
+                Assert.IsAssignableFrom<Blob>(blob);
                 Assert.Equal("9daeafb9864cf43055ae93beb0afd6c7d144bfa4", blob.Sha);
             }
         }
@@ -695,11 +733,11 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanAmendARootCommit()
         {
-            SelfCleaningDirectory scd = BuildSelfCleaningDirectory();
+            string repoPath = InitNewRepository();
 
-            CommitToANewRepository(scd.DirectoryPath);
+            AddCommitToRepo(repoPath);
 
-            using (var repo = new Repository(scd.DirectoryPath))
+            using (var repo = new Repository(repoPath))
             {
                 Assert.Equal(1, repo.Head.Commits.Count());
 
@@ -708,7 +746,7 @@ namespace LibGit2Sharp.Tests
 
                 CreateAndStageANewFile(repo);
 
-                Commit amendedCommit = repo.Commit("I'm rewriting the history!", DummySignature, DummySignature, true);
+                Commit amendedCommit = repo.Commit("I'm rewriting the history!", Constants.Signature, Constants.Signature, true);
 
                 Assert.Equal(1, repo.Head.Commits.Count());
 
@@ -719,8 +757,8 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanAmendACommitWithMoreThanOneParent()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo(StandardTestRepoPath);
-            using (var repo = new Repository(path.RepositoryPath))
+            string path = CloneStandardTestRepo();
+            using (var repo = new Repository(path))
             {
                 var mergedCommit = repo.Lookup<Commit>("be3563a");
                 Assert.NotNull(mergedCommit);
@@ -729,19 +767,24 @@ namespace LibGit2Sharp.Tests
                 repo.Reset(ResetOptions.Soft, mergedCommit.Sha);
 
                 CreateAndStageANewFile(repo);
+                const string commitMessage = "I'm rewriting the history!";
 
-                Commit amendedCommit = repo.Commit("I'm rewriting the history!", DummySignature, DummySignature, true);
+                Commit amendedCommit = repo.Commit(commitMessage, Constants.Signature, Constants.Signature, true);
 
                 AssertCommitHasBeenAmended(repo, amendedCommit, mergedCommit);
+
+                // Assert a reflog entry is created
+                var reflogEntry = repo.Refs.Log("HEAD").First();
+                Assert.Equal(amendedCommit.Committer, reflogEntry.Commiter);
+                Assert.Equal(amendedCommit.Id, reflogEntry.To);
+                Assert.Equal(string.Format("commit (amend): {0}", commitMessage), reflogEntry.Message);
             }
         }
 
         private static void CreateAndStageANewFile(Repository repo)
         {
             string relativeFilepath = string.Format("new-file-{0}.txt", Guid.NewGuid());
-            string filePath = Path.Combine(repo.Info.WorkingDirectory, relativeFilepath);
-
-            File.WriteAllText(filePath, "brand new content\n");
+            Touch(repo.Info.WorkingDirectory, relativeFilepath, "brand new content\n");
             repo.Index.Stage(relativeFilepath);
         }
 
@@ -757,23 +800,23 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanNotAmendAnEmptyRepository()
         {
-            SelfCleaningDirectory scd = BuildSelfCleaningDirectory();
+            string repoPath = InitNewRepository();
 
-            using (Repository repo = Repository.Init(scd.DirectoryPath))
+            using (var repo = new Repository(repoPath))
             {
-                Assert.Throws<LibGit2SharpException>(() => repo.Commit("I can not amend anything !:(", DummySignature, DummySignature, true));
+                Assert.Throws<OrphanedHeadException>(() => repo.Commit("I can not amend anything !:(", Constants.Signature, Constants.Signature, true));
             }
         }
 
         [Fact]
         public void CanRetrieveChildrenOfASpecificCommit()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo(StandardTestRepoPath);
-            using (var repo = new Repository(path.RepositoryPath))
+            string path = CloneStandardTestRepo();
+            using (var repo = new Repository(path))
             {
                 const string parentSha = "5b5b025afb0b4c913b4c338a42934a3863bf3644";
 
-                var filter = new Filter
+                var filter = new CommitFilter
                                  {
                                      /* Revwalk from all the refs (git log --all) ... */
                                      Since = repo.Refs,
@@ -800,8 +843,8 @@ namespace LibGit2Sharp.Tests
         [Fact]
         public void CanCorrectlyDistinguishAuthorFromCommitter()
         {
-            TemporaryCloneOfTestRepo path = BuildTemporaryCloneOfTestRepo(StandardTestRepoPath);
-            using (var repo = new Repository(path.RepositoryPath))
+            string path = CloneStandardTestRepo();
+            using (var repo = new Repository(path))
             {
                 var author = new Signature("Wilbert van Dolleweerd", "getit@xs4all.nl",
                                            Epoch.ToDateTimeOffset(1244187936, 120));
@@ -812,6 +855,28 @@ namespace LibGit2Sharp.Tests
 
                 Assert.Equal(author, c.Author);
                 Assert.Equal(committer, c.Committer);
+            }
+        }
+
+        [Fact]
+        public void CanCommitOnOrphanedBranch()
+        {
+            string newBranchName = "refs/heads/newBranch";
+
+            string repoPath = InitNewRepository();
+
+            using (var repo = new Repository(repoPath))
+            {
+                // Set Head to point to branch other than master
+                repo.Refs.UpdateTarget("HEAD", newBranchName);
+                Assert.Equal(newBranchName, repo.Head.CanonicalName);
+
+                const string relativeFilepath = "test.txt";
+                Touch(repo.Info.WorkingDirectory, relativeFilepath, "test\n");
+                repo.Index.Stage(relativeFilepath);
+
+                repo.Commit("Initial commit", Constants.Signature, Constants.Signature);
+                Assert.Equal(1, repo.Head.Commits.Count());
             }
         }
     }
